@@ -1,4 +1,4 @@
-# LoveMediator 技术开发文档（商业工程版）
+﻿# LoveMediator 技术开发文档（商业工程版）
 
 ---
 
