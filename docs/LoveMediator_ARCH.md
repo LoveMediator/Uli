@@ -1,4 +1,4 @@
-﻿# LoveMediator 技术开发文档（商业工程版）
+# LoveMediator 技术开发文档（商业工程版）
 
 ---
 
@@ -31,7 +31,7 @@
 | **适用阶段** | MVP 开发 → 商业化上线 |
 | **核心目标** | 为 AI 辅助编程工具 (Cursor) 提供包含商业背景、核心架构、数据模型及防御性编程规范的完整上下文。 |
 | **目标读者** | 开发（含 AI 辅助）、产品、技术评审、运维 |
-| **修订历史** | v3.0 → v3.1：全局一致性整合；Part 6 增加 6.5 标准响应与错误处理、X-Trace-Id 响应头、6.6 API 契约编号顺延；Part 8/9 安全与运维红队补全；错误码与 .env 配置与第八/九节对齐。 |
+| **修订历史** | v3.0 → v3.1：全局一致性整合；Part 6 增加 6.5 标准响应与错误处理、X-Trace-Id 响应头、6.6 API 契约编号顺延；Part 8/9 安全与运维红队补全；错误码与 .env 配置与第八/九节对齐。v3.1 后续：**以 DB/API/FD 三份功能文档为基准**对 ARCH 进行替换与优化——数据模型与接口契约（Part 6）改为以 **DB_LoveMediator_v1**（events、event_snapshots、judge_results、event_status 等）与 **API_LoveMediator_v1**（统一响应 code/message/data、错误码、路径）为准；核心流程（Part 7）与 **FD_LoveMediator_v1** 状态机与流程一致；全文 Case/Verdict 等术语统一为 Event/JudgeResult（judge_results）、event_status、public_id 等。 |
 
 ---
 
@@ -56,7 +56,7 @@
 
 | 原则 | 说明 |
 |------|------|
-| **平行视角 (Parallel Perspectives)** | 系统允许 User A 和 User B 在同一 Case 下提交**独立且冲突**的事实快照 (Snapshot)。系统在输入阶段**不强求共识**。 |
+| **平行视角 (Parallel Perspectives)** | 系统允许 User A 和 User B 在同一 Event 下提交**独立且冲突**的事实快照（event_snapshots）。系统在输入阶段**不强求共识**。 |
 | **认知偏差识别 (Cognitive Bias Detection)** | AI 的任务不是简单「判对错」，而是通过对比 A/B 的 Snapshot，识别「归因错误」「情绪放大」等认知偏差。 |
 | **异步状态机驱动 (FSM Driven)** | 流程流转（如：Waiting_B → Cross_Checking）**严格由后端状态机控制**，杜绝 AI 幻觉导致的流程失控。 |
 
@@ -66,7 +66,7 @@
 
 ### 4.1 功能范围（当前版本）
 
-- Case 全生命周期：草稿 → A 提交 → B 介入（含影子模式）→ 双边提交 → AI 判决 → 归档入日历。
+- Event 全生命周期：草稿 → A 提交 → B 介入（含影子模式）→ 双边提交 → AI 裁判 → 复盘入日历。
 - 情感日历：时间轴、冲突洞察（含 pgvector 聚类）、结案后「甜蜜后续」。
 - 双 Token 鉴权：注册用户 JWT + 影子用户 Signed Cookie。
 - 预留扩展：小精灵传话、甜蜜日常记忆（接口 501 预留）。
@@ -75,7 +75,7 @@
 
 - **性能**：OCR、LLM 等长时任务通过 Celery + Redis 异步处理，避免阻塞请求。
 - **安全与合规**：PII 脱敏、OCR 熔断、响应出站 PII 掩码。
-- **成本**：单请求 Token 上限、单 Case 总消耗上限、OCR 结果缓存，超预算降级规则引擎。
+- **成本**：单请求 Token 上限、单 Event 总消耗上限、OCR 结果缓存，超预算降级规则引擎。
 
 ### 4.3 边界与假设
 
@@ -118,11 +118,11 @@
 | **RBAC / 组织角色** | 纯增量 | 新增角色表、权限检查点（如 `deps.py`）；现有 UserRole 保留为「参与角色」，与组织级角色并存，**无缝**。 |
 | **SSO / 第三方登录** | 纯增量 | 在现有 JWT 发放前增加 OAuth/OIDC 校验与用户映射；双 Token 体系不变，**无缝**。 |
 | **合规与 SLA** | 文档与运维 | 隐私政策、等保、SLA 指标、灾备与回滚多为流程与配置，不强制改核心表结构，**低侵入**。 |
-| **多租户（SaaS 化）** | 需有规划加列与查询改造 | 需在业务表（Case、User、Verdict 等）增加 `tenant_id`，所有查询加租户过滤，唯一约束改为 (tenant_id, uuid) 等；**可一次迁移完成**，但需预留设计。 |
+| **多租户（SaaS 化）** | 需有规划加列与查询改造 | 需在业务表（events、users、judge_results 等）增加 `tenant_id`，所有查询加租户过滤，唯一约束改为 (tenant_id, public_id) 等；**可一次迁移完成**，但需预留设计。 |
 
 **多租户如何尽量「无缝」**
 
-- **方案 A（推荐）**：MVP 阶段在 **User**（及可选 Case）表增加可空字段 `tenant_id`，默认值 `1` 表示单租户；所有按「当前用户」的查询已通过 `user_a_id`/`user_b_id` 间接归属，后续只需在 Session/Token 中注入 `tenant_id`，并在 CRUD 与索引中统一加上 `tenant_id` 条件与复合唯一约束。一次 Alembic 迁移 + 查询作用域统一即可，**无需改 API 契约或罗生门逻辑**。
+- **方案 A（推荐）**：MVP 阶段在 **users**（及可选 events）表增加可空字段 `tenant_id`，默认值 `1` 表示单租户；所有按「当前用户」的查询已通过 relationship 的 `user_a_id`/`user_b_id` 与 events 的 `initiator_user_id` 等间接归属，后续只需在 Session/Token 中注入 `tenant_id`，并在 CRUD 与索引中统一加上 `tenant_id` 条件与复合唯一约束。一次 Alembic 迁移 + 查询作用域统一即可，**无需改 API 契约或罗生门逻辑**。
 - **方案 B**：不做预留，待企业级时再加 `tenant_id` 并全量数据 backfill；同样可行，但需集中改造所有查询与索引，工作量略大，仍不涉及推翻架构。
 
 **总结**：现有设计（状态机、双 Token、罗生门、API 版本化、Pydantic 契约）本身不阻碍企业级扩展；只要在**首次规划多租户时**统一加列与查询作用域，即可与审计、RBAC、SSO 等增量能力一起，**有序过渡到完整企业级**，无需推倒重来。
@@ -159,206 +159,220 @@
 
 ## 六、数据模型与接口契约 (Data Model & API Contract)
 
+**本节以《DB_LoveMediator_v1》与《API_LoveMediator_v1》为基准**，数据模型、枚举、表结构与 API 契约与上述两文档保持一致；详细建表与约束见 DB 文档，接口请求/响应示例见 API 文档。
+
 ### 6.1 设计要点
 
-- **Case** 表：存储状态流转；**Snapshot** 字段（`snapshot_a` / `snapshot_b`）**仅使用 JSONB 类型**，存储冻结的 A/B 事实，写入后**不可覆盖**（罗生门原则）。
-- **Verdict** 表：存储 AI 判决内容、标签及向量，支撑情感日历与洞察；与 Case 为 1:1 关系。
-- 所有 API 请求/响应与 Pydantic Schema 严格对齐，类型定义以本节及后端 `schemas/` 为准。
+- **events** 表：冲突事件主表，状态机锚点；通过 **relationship_id** 控制共享范围，**initiator_user_id** 为发起方（A）。
+- **event_snapshots** 表：A/B 冻结事实快照，每事件每侧仅一份（`event_id` + `side` 唯一）；**is_frozen=true** 后禁止更新 summary/points_a/points_b/raw_payload（罗生门原则）。
+- **judge_results** 表：裁判结论只读展示，与 Event 1:1；生成后不实时重算，严禁被后续对话覆盖。
+- **relationships**、**users**、**private_sessions**、**private_messages**、**reviews**、**calendar_entries** 等见 DB 文档；所有 API 请求/响应与 Pydantic Schema 严格对齐，类型以本节及后端 `schemas/`、API 文档为准。
 
-### 6.2 枚举定义
+### 6.2 枚举定义（与 DB 一致）
 
-**CaseStatus**（案件状态，与后端状态机一致）：
+**event_status**（事件状态，与 FD 状态机一致）：
 
 | 值 | 含义 | 说明 |
 |----|------|------|
-| `draft_a` | A 编辑中 | Snapshot A 未冻结 |
-| `waiting_b` | 等待 B | A 已提交，Snapshot A 已锁定，生成分享链接 |
-| `analyzing_b` | B 编辑中 | B 已介入，B 正在编辑/补充己方事实 |
-| `processing` | AI 判决中 | 双边已提交，Celery 任务执行中（Cross_Checking） |
-| `judged` | 判决完成 | Verdict 已生成，可归档 |
-| `archived` | 已归档 | 已进入情感日历时间轴 |
-| `cancelled` | 已撤销/作废 | A 撤销或链接过期等，终态，避免僵尸 Case |
-| `failed` | 判决失败 | 重试耗尽仍失败，终态，可人工介入或重试 |
+| `draft` | 草稿/私有阶段 | A 私有分析中，Snapshot_A 未冻结 |
+| `waiting_b` | 等待 B | A 已 commit-a，Snapshot_A 已锁定 |
+| `judged` | 裁判已生成 | JudgeResult 已落库，可查看与复盘 |
+| `reviewed` | 已沉淀复盘 | 可选，复盘入历 |
+| `closed` | 事件关闭 | 可选终态 |
 
-**合法状态流转**（仅后端可驱动）：  
-`draft_a` → `waiting_b` → `analyzing_b` | `processing` → `judged` → `archived`；任意非终态在业务允许时可 → `cancelled`；`processing` 可 → `failed`。
+**合法流转**（仅后端可驱动）：`draft` → `waiting_b` → `judged` → `reviewed` → `closed`。详见 FD 与 7.1。
 
-**UserRole**：
+**user_status**：`active` | `locked` | `disabled`  
 
-- `initiator`：发起方 (A)  
-- `invitee`：被邀请方 (B)，已注册  
-- `shadow`：未注册临时用户（影子模式）  
+**relationship_status**：`pending` | `active` | `closed`  
 
-**VerdictWinner**（判决结果类型，用于 `Verdict.winner`）：
+**snapshot_side**：`a` | `b`  
 
-- `A` | `B` | `Draw` | `Constructive`（建设性平局）
+**moderation_risk_level**：`low` | `medium` | `high`  
 
-### 6.3 核心表结构 (SQLModel)
+（角色概念：发起方 A / 参与方 B 由 **events.initiator_user_id** 与 **relationships.user_a_id / user_b_id** 体现；影子模式见 8.1/8.4。）
 
-**Case**
+### 6.3 核心表结构摘要（详见 DB 文档）
+
+**events**（冲突事件主表）
 
 | 字段 | 类型 | 可空 | 说明 |
 |------|------|------|------|
-| `id` | INTEGER | 否 (PK) | 自增主键 |
-| `uuid` | VARCHAR(64) | 否 | 分享链接 ID，全局唯一 |
-| `status` | CaseStatus (Enum) | 否 | 默认 `draft_a` |
-| `user_a_id` | INTEGER (FK → user.id) | 否 | 发起方 |
-| `user_b_id` | INTEGER (FK → user.id) | 是 | 被邀请方；影子模式下可为 NULL |
-| `snapshot_a` | **JSONB** | 是 | A 方冻结事实，`commit_a` 后必填；写入后不可覆盖 |
-| `snapshot_b` | **JSONB** | 是 | B 方冻结事实，B 提交后必填；写入后不可覆盖 |
-| `created_at` | TIMESTAMPTZ | 否 | 创建时间 |
-| `updated_at` | TIMESTAMPTZ | 否 | 最后更新时间（含状态变更） |
-| `expire_at` | TIMESTAMPTZ | 是 | 仅当 `status = waiting_b` 时有效；B 响应截止时间，超时由定时任务置为 `cancelled`（见第七节 7.2） |
+| `id` | BIGSERIAL | 否 (PK) | 主键 |
+| `public_id` | VARCHAR(40) | 否 | 对外标识，全局唯一（分享/API 用） |
+| `relationship_id` | BIGINT (FK → relationships.id) | 否 | 共享域 |
+| `initiator_user_id` | BIGINT (FK → users.id) | 否 | 发起方 A |
+| `title` | VARCHAR(120) | 是 | 事件标题 |
+| `status` | event_status | 否 | 默认 `draft` |
+| `judged_at` / `reviewed_at` / `closed_at` | TIMESTAMPTZ | 是 | 各阶段时间戳 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | 否 | 创建/更新时间 |
 
-**Snapshot JSONB 结构**（`snapshot_a` / `snapshot_b` 共用）：  
-`{ "summary": str, "evidence": List[str], "mood": str }`。用于 Prompt 与前端展示，禁止在业务逻辑中合并 A/B 内容。
+**event_snapshots**（A/B 冻结快照）
 
-**Verdict**
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `event_id`, `side` (a/b) | 唯一 | 每事件每侧仅一份 |
+| `summary` | TEXT | 事实摘要 |
+| `points_a` / `points_b` | JSONB | 观点列表 |
+| `raw_payload` | JSONB | 可选原始载荷 |
+| `is_frozen` | BOOLEAN | 冻结后不可改 summary/points/raw_payload |
+| `confirmed_by_user_id`, `confirmed_at` | 必填 | 确认人与时间 |
 
-| 字段 | 类型 | 可空 | 说明 |
-|------|------|------|------|
-| `id` | INTEGER | 否 (PK) | 自增主键 |
-| `case_id` | INTEGER (FK → case.id) | 否 | 一对一，唯一 |
-| `content` | TEXT | 否 | AI 判决书 Markdown |
-| `winner` | VerdictWinner (Enum) | 否 | A / B / Draw / Constructive |
-| `tags` | JSONB | 否 | 字符串数组，如 `["金钱", "沟通"]`，情感日历与聚类用 |
-| `embedding` | VECTOR(1536) | 是 | pgvector，相似度检索；可为 NULL（降级判决时） |
-| `meta_info` | JSONB | 是 | 关系修缮与「甜蜜后续」，结构见 6.3.1 |
-| `created_at` | TIMESTAMPTZ | 否 | 判决生成时间 |
+**judge_results**（裁判结果，只读）
 
-**6.3.1 meta_info 约定（扩展性）**
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `event_id` | 唯一 FK | 与 Event 1:1 |
+| `objective_summary` | TEXT | 客观摘要 |
+| `triggers` / `misunderstandings` | JSONB | 触发点、误解点 |
+| `advice_for_a` / `advice_for_b` | JSONB | 给 A/B 的建议 |
+| `model_name` / `input_tokens` / `output_tokens` | 可空 | 调用审计与成本 |
 
-为保证「甜蜜后续」与日历展示一致，约定 `meta_info` 最小结构（可扩展键，不得删除已有键）：
+**users**、**relationships**、**refresh_tokens**、**auth_login_logs**、**private_sessions**、**private_messages**、**followup_messages**、**reviews**、**review_versions**、**calendar_entries**、**elf_messages**、**moderation_logs**、**event_state_logs**、**ai_call_logs** 等表结构、约束与事务边界见 **DB 文档 §5、§6、§8**。
 
-```json
-{
-  "aftermath": {
-    "content": "string, 用户填写的后续说明",
-    "added_at": "ISO8601"
-  },
-  "display_tone": "positive | neutral"
-}
-```
+**可选扩展**：若需「waiting_b 超时自动关闭」，可在 events 增加 `expire_at`（TIMESTAMPTZ），仅当 `status=waiting_b` 时有效，定时任务扫描后置为 `closed` 或单独终态；索引 `(status, expire_at)`。见 7.2。
 
-- `display_tone`：`positive` 表示已填甜蜜后续，日历展示为「粉」；缺省或 `neutral` 为「红」。
-- 其他键（如后续的复盘标签）可追加，避免与上述键冲突。
+### 6.4 数据库索引建议（与 DB 一致）
 
-### 6.4 数据库索引建议 (Index)
+| 表 | 索引 | 用途 |
+|----|------|------|
+| events | `public_id` UNIQUE | 按 public_id 查事件、分享链接 |
+| events | `(relationship_id, status, created_at DESC)` | 关系维度时间轴 |
+| events | `(initiator_user_id, created_at DESC)` | 发起方事件列表 |
+| event_snapshots | `(event_id, side)` UNIQUE | 按事件取 A/B 快照 |
+| judge_results | `event_id` UNIQUE | 按事件取裁判结果 |
+| calendar_entries | `(relationship_id, calendar_date)` | 月历查询 |
 
-| 表 | 索引 | 类型 | 用途 |
-|----|------|------|------|
-| Case | `uuid` | UNIQUE | B 打开分享链接、preview/join/verdict 等按 uuid 查询 |
-| Case | `status` | B-tree | 日历时间轴筛选 `status = archived` |
-| Case | `(user_a_id, status, created_at DESC)` | 复合 B-tree | 当前用户作为 A 的归档时间轴 |
-| Case | `(user_b_id, status, created_at DESC)` | 复合 B-tree | 当前用户作为 B 的归档时间轴 |
-| Case | `updated_at` | B-tree（可选） | 按更新时间排查/审计 |
-| Case | `(status, expire_at)` | 复合 B-tree | 定时任务扫描「waiting_b 且已过期」的 Case（见 7.2） |
-| Verdict | `case_id` | UNIQUE | 按 case 取判决，保证 1:1 |
-| Verdict | `embedding` | HNSW 或 IVFFlat (pgvector) | 情感日历 insight 的相似度检索 |
+其余索引见 **DB 文档 §5、§7**。
 
-### 6.5 标准响应与错误处理 (Standard Response & Error Handling)
+### 6.5 标准响应与错误处理（与 API 一致）
 
-**统一响应信封**：成功时返回 `{ "data": T }`；错误时返回 `{ "code": string, "message": string, "detail": optional }`。所有错误响应均携带响应头 **`X-Trace-Id`**（与第九节 9.4 全链路 trace_id 一致），便于前端在报错时提供给客服/运维排查。
+**统一响应结构**（与 API 文档 2.1 一致）：
 
-**HTTP 状态码与业务错误码（与 Part 8 限流/成本一致）**：
+- 成功：`{ "code": 0, "message": "ok", "data": T }`
+- 失败：`{ "code": number, "message": string, "data": null }`
 
-| HTTP 状态码 | 场景 | 建议 body.code | 说明 |
-|-------------|------|----------------|------|
-| 429 | Rate Limiting 触发（8.4） | `RATE_LIMIT_EXCEEDED` | 请求过于频繁或单 IP 访问不同 Case 数超限 |
-| 413 | 单次上传超过 MAX_UPLOAD_SIZE（8.5） | `PAYLOAD_TOO_LARGE` | 单张图片超过限制 |
-| 503 | Token 熔断/服务降级（8.3）或 LLM 暂时不可用 | `SERVICE_DEGRADED` 或 `QUOTA_EXCEEDED` | 超预算降级或服务不可用，可重试 |
-| 4xx/5xx 其他 | 鉴权失败、业务校验等 | 与业务约定 | 响应中均带 `X-Trace-Id` |
+**通用错误码**（与 API 文档 2.4 一致）：
 
-**响应头约定**：
+| code | 含义 |
+|------|------|
+| 1001 | 参数校验失败 |
+| 1002 | 资源不存在 |
+| 1003 | 状态不允许该操作 |
+| 2001 | 认证失败（未登录/凭证无效） |
+| 2002 | 无权限访问资源 |
+| 2003 | 账号锁定或禁用 |
+| 2004 | 请求过频（限流） |
+| 3001 | 用户名已存在 |
+| 3002 | 快照已冻结不可修改 |
+| 3003 | 事件尚未满足分析前置条件 |
+| 5000 | 系统内部错误 |
 
-| Header | 说明 |
-|--------|------|
-| **X-Trace-Id** | 本次请求全链路追踪 ID（UUID），由网关或入口生成并贯穿 FastAPI → Celery；**所有响应**（含错误）均应返回，便于前端在用户报错时反馈给客服。 |
+**HTTP 状态码与 body.code**：4xx/5xx 时 body 仍为上述结构；429 对应 2004，413 对应单文件超限（可复用 1001 或单独约定）。所有响应（含错误）均携带响应头 **X-Trace-Id**（与 9.4 全链路 trace_id 一致）。
 
-### 6.6 API 接口契约
+### 6.6 API 接口契约（与 API 文档一致）
 
-#### 6.6.1 Case 管理（核心流程）
+#### 6.6.1 登录注册（AUTH）
 
-| 方法 | 路径 | 功能 | 关键逻辑/鉴权 |
-|------|------|------|----------------|
-| POST | `/api/v1/cases/draft` | 创建草稿，上传 OCR 证据 | Body: `files`, `text`。逻辑：OCR → PII 脱敏 → 存 Redis 临时会话。 |
-| POST | `/api/v1/cases/{uuid}/commit_a` | A 确认事实，冻结 Snapshot A | 副作用：状态 → WAITING_B，生成分享链接。 |
-| GET | `/api/v1/cases/{uuid}/preview` | B 或影子用户查看 A 的控诉 | 支持 Shadow Token 鉴权。 |
-| POST | `/api/v1/cases/{uuid}/join` | B 提交回应 | 若 B 同意 → 触发判决；若 B 不同意 → 进入 B 编辑流程。 |
-| GET | `/api/v1/cases/{uuid}/verdict` | 获取判决结果 | 判决完成后可用。 |
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| POST | `/api/v1/auth/register` | 注册（AUTH-FR-001） |
+| POST | `/api/v1/auth/login` | 登录（AUTH-FR-002） |
+| POST | `/api/v1/auth/refresh` | 刷新 token（AUTH-FR-004） |
+| POST | `/api/v1/auth/logout` | 登出（AUTH-FR-004） |
 
-#### 6.6.2 情感日历
+#### 6.6.2 AI 调解（MED）
 
-| 方法 | 路径 | 功能 | 说明 |
-|------|------|------|------|
-| GET | `/api/v1/calendar/timeline` | 冲突历史时间轴 | 筛选条件：status=ARCHIVED。 |
-| GET | `/api/v1/calendar/insight` | 基于 pgvector 的关系洞察 | 示例响应：「本月冲突主要集中在『家务』，比上月改善 20%」。 |
-| PATCH | `/api/v1/cases/{uuid}/aftermath` | 结案后追加「甜蜜后续」 | 更新 Verdict 的 `meta_info`，日历中事件色调由红→粉。 |
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| POST | `/api/v1/events` | 创建事件（draft） |
+| POST | `/api/v1/events/{eventId}/private-chat/messages` | 私有会话发消息（MED-FR-001） |
+| POST | `/api/v1/events/{eventId}/commit-a` | A 确认并冻结 Snapshot_A（MED-FR-002） |
+| GET | `/api/v1/events/{eventId}/snapshot-a` | B 预览 Snapshot_A（MED-FR-003） |
+| POST | `/api/v1/events/{eventId}/b-agree` | B 同意并触发裁判（MED-FR-003/004） |
+| POST | `/api/v1/events/{eventId}/commit-b` | B 提交 Snapshot_B 并触发裁判（MED-FR-003/004） |
+| GET | `/api/v1/events/{eventId}/judge-result` | 获取裁判结果，只读落库（MED-FR-005） |
+| POST | `/api/v1/events/{eventId}/followup-chat/messages` | 复盘聊天（MED-FR-006） |
 
-#### 6.6.3 预留扩展（Future）
+#### 6.6.3 吵架日历（CAL）
 
-| 方法 | 路径 | 状态 | 说明 |
-|------|------|------|------|
-| POST | `/api/v2/elf/message` | 501 Not Implemented | 小精灵传话。 |
-| POST | `/api/v2/memories` | 501 Not Implemented | 纯甜蜜日常记录。 |
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| GET | `/api/v1/calendar` | 月历查询（CAL-FR-002） |
+| GET | `/api/v1/calendar/days/{date}/reviews` | 日期复盘列表（CAL-FR-002） |
+| GET | `/api/v1/reviews/{reviewId}` | 复盘详情（CAL-FR-001/002） |
+| PUT | `/api/v1/reviews/{reviewId}` | 编辑复盘（CAL-FR-003） |
+
+#### 6.6.4 互动（IM，V1.5+）
+
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| POST | `/api/v1/elf/relay` | 代转达消息（IM-FR-001） |
+| POST | `/api/v1/elf/moderate` | 过激语言检测与柔化（IM-FR-002） |
+
+接口请求/响应示例、鉴权与业务错误码见 **API 文档**；事件读写须校验 **relationship** 可见范围，裁判结果严禁实时触发 LLM。
 
 ---
 
 ## 七、核心流程与业务逻辑 (Core Flows & Business Logic)
 
+**本节与《FD_LoveMediator_v1》流程、状态机一致**；数据对象与表以 DB 为准（Event、event_snapshots、judge_results）。
+
 **红队评审：原文档漏洞（已在本节补全）**
 
 | 维度 | 原文档漏洞 | 本节对应补全 |
 |------|------------|--------------|
-| **死锁与超时** | 未定义 B 不操作时的结局，Case 可永远卡在 `waiting_b`；无 `expire_at` 与定时任务。 | 7.2：`expire_at`、定时扫描 → `cancelled`、可选提醒；Part 6 已同步 Case 表与索引。 |
-| **分布式与错误处理** | 未明确 LLM/Worker 失败时状态是否回滚、重试次数、失败后终态与运维可见性。 | 7.3：状态仅成功时 → `judged`；重试策略、N 次后 → `failed`、DLQ、通知管理员。 |
-| **AI 工程化** | 未约定长文本/乱码 OCR 的截断与摘要、Context Window 策略；未约定 Prompt 注入防御。 | 7.5：Context Window 管理、长文本摘要/截断、异常输入处理；7.6：System Prompt 约束、结构化输出、输入清洗。 |
+| **死锁与超时** | 未定义 B 不操作时结局，Event 可永远卡在 `waiting_b`；无 `expire_at` 与定时任务。 | 7.2：可选 `expire_at`、定时扫描 → `closed`、可选提醒；Part 6 已说明可选扩展。 |
+| **分布式与错误处理** | 未明确 LLM/Worker 失败时状态回滚、重试次数、失败终态与运维可见性。 | 7.3：仅成功时写入 judge_results 并更新 `judged`；重试策略、失败时 DLQ、通知管理员。 |
+| **AI 工程化** | 未约定长文本/乱码截断与摘要、Context Window 策略；未约定 Prompt 注入防御。 | 7.5：Context Window 管理、长文本摘要/截断、异常输入处理；7.6：System Prompt 约束、结构化输出、输入清洗。 |
 
-### 7.1 罗生门架构实现（异步工作流）
+### 7.1 罗生门架构实现（与 FD 核心流程一致）
 
-- 使用 **Celery** 处理双边证据比对与判决生成。
-- 流程要点：
-  1. **构建 Prompt**：罗生门视角模板（如 `god_view.jinja2`），入参：`story_a`、`story_b`、历史相似 Case（RAG 检索）；长文本与上下文管理见 7.5，注入防御见 7.6。
-  2. **LLM 调用**：Instructor + Pydantic 结构化输出（如 `VerdictSchema`），带重试与死信策略（见 7.3）；失败时走降级策略（如 `fallback_verdict()`），仍失败则状态置为 `failed` 并进入 DLQ/告警。
-  3. **存储与向量化**：写入 Verdict 表并生成 Embedding 入 pgvector。
+- **A 私有分析**：A 与 AI 在 **private_sessions / private_messages** 中对话，仅做文本整理与观点抽取，**不写共享 Event**（FD 5.3）。
+- **A 确认事实（commit-a）**：后端从当前私有会话生成结构化事实，插入 **event_snapshots(side='a')** 并冻结，**events.status** 置为 `waiting_b`；事务内写入 **event_state_logs**（DB §6.1）。
+- **B 分支**：  
+  - **B 同意**：`b-agree` 内部执行 `judge(snapshot_A, inferred_snapshot_B)`，插入 **judge_results**，**events.status** 置为 `judged`（DB §6.2）。  
+  - **B 不同意**：B 进入私有分析后 **commit-b**，插入 **event_snapshots(side='b')**，再生成 **judge_results**，**events.status** 置为 `judged`（DB §6.3）。
+- **裁判结果**：**只读落库**，查看结果时严禁实时调用 LLM（API 实现约束）；后续复盘聊天不得修改已冻结 Snapshot 与已生成 JudgeResult（FD 5.6、5.7）。
+- **Prompt 与 LLM**：罗生门视角模板入参为 Snapshot A/B（及可选 RAG 历史）；Instructor + Pydantic 结构化输出（如 JudgeResultSchema：objective_summary、triggers、misunderstandings、advice_for_a/b）；长文本与上下文管理见 7.5，注入防御见 7.6。若采用 **Celery** 异步执行判决，见 7.3 重试与失败处理。
 
 ### 7.2 死锁与超时机制 (Deadlock & Timeout)
 
-**风险**：User A 提交后进入 `waiting_b`，B 打开链接后不操作或关闭页面，Case 会永久卡在 `waiting_b`。
+**风险**：A 提交后 Event 进入 `waiting_b`，B 不操作或关闭页面，事件会永久卡在 `waiting_b`。
 
 **设计**：
 
 | 机制 | 说明 |
 |------|------|
-| **过期时间** | Case 进入 `waiting_b` 时写入 **`expire_at`**（如 `updated_at + 24h`）。仅当 `status = waiting_b` 时生效；B 提交或 A 撤销后不再使用。 |
-| **定时任务** | 周期性任务（如 Celery Beat 每 15 分钟）扫描 `status = waiting_b` 且 `expire_at < now()` 的 Case，将状态更新为 **`cancelled`**，并可选写入 `meta` 或单独日志表原因：`b_no_response_timeout`。 |
-| **可选提醒** | 在 `expire_at` 前 N 小时（如 2h）可触发一次「提醒 B」（站内/推送/邮件等），逻辑与定时任务解耦，由产品侧配置。 |
+| **过期时间** | 若实现「B 响应截止」，在 events 表增加可选 **`expire_at`**（如 `updated_at + 24h`），仅当 `status = waiting_b` 时生效。 |
+| **定时任务** | 周期性任务（如 Celery Beat 每 15 分钟）扫描 `status = waiting_b` 且 `expire_at < now()` 的事件，将状态更新为 **`closed`**，并可选写入 event_state_logs 或 meta 原因：`b_no_response_timeout`。 |
+| **可选提醒** | 在 `expire_at` 前 N 小时可触发「提醒 B」，逻辑与定时任务解耦，由产品侧配置。 |
 
-**Part 6 同步**：在 **Case** 表增加字段 **`expire_at`**（TIMESTAMPTZ，可空），并增加索引 **`(status, expire_at)`**，供定时任务高效扫描。详见第六节 6.3 / 6.4。
+**Part 6 同步**：第六节 6.3 已说明 events 表可选 `expire_at` 与索引 `(status, expire_at)`。
 
 ### 7.3 分布式一致性与错误处理 (Consistency & Error Handling)
 
-**风险**：Celery 执行 LLM 判决时，外部 API 超时或 Worker 崩溃，状态若一直停留在 `processing` 会导致僵尸 Case 与用户无反馈。
+**风险**：Celery 执行裁判生成时，外部 API 超时或 Worker 崩溃，若一直不落库会导致用户无反馈。
 
 **设计**：
 
 | 项 | 约定 |
 |----|------|
-| **状态归属** | 仅当 Celery 任务**成功**完成时，才将 Case 状态从 `processing` 更新为 `judged` 并写入 Verdict。任务未完成或异常时，**不**回滚为 `analyzing_b`，保持 `processing` 直至重试耗尽或进入失败流程。 |
-| **重试策略 (Retry Strategy)** | 判决任务使用 **指数退避**（如 Tenacity：1min、2min、4min），**最大重试次数 N**（建议 3）。每次重试前可做幂等校验（Case 仍为 `processing` 且无 Verdict）。 |
-| **失败终态** | 重试 N 次后仍失败（OpenAI 超时、Worker 崩溃、解析异常等），将 Case 状态更新为 **`failed`**，并可选写入 Verdict 占位（如 `content = "系统暂时无法生成判决，请稍后重试或联系客服"`，`winner = Draw`），或仅留空由人工/重跑处理。 |
-| **死信队列 (DLQ)** | 失败任务进入 **死信队列**（Celery 死信或独立表如 `task_failures`），记录 `case_id`、`task_id`、`last_error`、`failed_at`，便于运维重试或人工介入。 |
-| **通知** | 当 Case 进入 `failed` 时，**通知管理员**（邮件/钉钉/内部告警），并可选对用户侧展示「生成失败，请稍后重试」。 |
+| **状态归属** | 仅当 Celery 任务**成功**完成时，才写入 **judge_results** 并将 **events.status** 更新为 **`judged`**、judged_at=now()。任务未完成或异常时，不回滚为 waiting_b，可保持「进行中」内部标记直至重试耗尽或进入失败流程。 |
+| **重试策略** | 判决任务使用 **指数退避**（如 Tenacity：1min、2min、4min），**最大重试次数 N**（建议 3）。每次重试前可做幂等校验（该 event 尚无 judge_result）。 |
+| **失败终态** | 重试 N 次后仍失败，将事件置为 **`closed`** 或单独失败终态，并可选写入 judge_results 占位（如 objective_summary="系统暂时无法生成裁判，请稍后重试或联系客服"）；或仅记录 DLQ 由人工/重跑处理。 |
+| **死信队列 (DLQ)** | 失败任务进入 **死信队列**（Celery 死信或独立表如 `task_failures`），记录 `event_id`、`task_id`、`last_error`、`failed_at`、trace_id，便于运维重试或人工介入。 |
+| **通知** | 当裁判生成失败时，**通知管理员**（邮件/钉钉/内部告警），并可选对用户侧展示「生成失败，请稍后重试」。 |
 
 ### 7.4 记忆与上下文拼接策略 (Context Splicing)
 
-每次调用 LLM 时动态构建上下文：
+与 **FD §5.8 build_context(user_id, event_id)** 一致：每次调用 LLM 时动态构建上下文。
 
-- **Short-term**：Redis 中最近 6 轮对话。  
-- **Mid-term**：Snapshot A + Snapshot B（不可变事实）。  
-- **Long-term**：pgvector 检索的历史 Verdict 标签（如「A 对金钱敏感」）。  
+- **Short-term**：私有会话或复盘最近 6–10 轮对话（private_messages / followup_messages）。  
+- **Mid-term**：event_snapshots（Snapshot_A / Snapshot_B，不可变）。  
+- **Long-term**：judge_results（客观摘要与建议）、可选历史复盘或 pgvector 检索。  
 
-上下文总长度受 **Context Window 管理策略** 约束，见 7.5。
+上下文总长度受 **Context Window 管理策略** 约束，见 7.5；FD §5.9 约定最近对话 ≤10 条、snapshot ≤2、judge ≤1、单次总上下文 ≤1500 tokens。
 
 ### 7.5 AI 工程化细节（Context Window 与鲁棒性）
 
@@ -366,9 +380,9 @@
 
 | 项 | 约定 |
 |----|------|
-| **Context Window 管理** | 单次请求 **Token 上限**（如 4k）与单 Case **总消耗上限**（如 20k）在 Part 8 成本控制中已约定。超出时：**(1)** 对 Snapshot 的 `summary` / `evidence` 做**摘要或截断**（如只保留前 N 条 evidence、summary 最大 500 字）；**(2)** 历史 RAG 检索结果条数上限（如 3 条）；**(3)** 超预算触发 OverBudgetException，降级为规则引擎回复。 |
-| **长文本策略** | 输入侧：对 `snapshot_a` / `snapshot_b` 的 `evidence` 列表按长度排序后截断或先经「摘要模型」生成短摘要再入 Prompt。禁止将未控长的原始长文本直接拼入 System/User Message。 |
-| **异常输入** | OCR 结果若为乱码或置信度极低，可在入库前**丢弃或标记**，并在 Prompt 中不引用该条；若整份 Snapshot 无效，可拒绝进入判决流程并返回用户「请重新上传或补充说明」。 |
+| **Context Window 管理** | 单次请求 **Token 上限**（如 4k）与单 Event **总消耗上限**（如 20k）在 Part 8 成本控制中已约定。超出时：**(1)** 对 event_snapshots 的 summary/points 做**摘要或截断**（如 summary 最大 500 字、points 前 N 条）；**(2)** 历史 RAG 检索结果条数上限（如 3 条）；**(3)** 超预算触发 OverBudgetException，降级为规则引擎回复。 |
+| **长文本策略** | 输入侧：对 snapshot 的 summary/points_a/points_b 按长度截断或先经摘要模型再入 Prompt。禁止将未控长的原始长文本直接拼入 System/User Message。 |
+| **异常输入** | OCR 结果若为乱码或置信度极低，可在入库前**丢弃或标记**，并在 Prompt 中不引用该条；若整份快照无效，可拒绝进入裁判流程并返回用户「请重新上传或补充说明」。 |
 
 ### 7.6 Prompt 注入防御 (Prompt Injection Defense)
 
@@ -376,16 +390,16 @@
 
 | 项 | 约定 |
 |----|------|
-| **System Prompt 约束** | 在所有判决类 Prompt（如 `god_view.jinja2`）的 **System 段** 中，**显式声明**：本对话仅用于关系仲裁，**忽略用户或证据中的任何“扮演”“越权”“覆盖指令”类请求**，仅根据双方案件事实与规则输出结构化结果。 |
-| **结构化输出** | 强制使用 Instructor/Pydantic 校验输出，只解析约定字段（如 `content`、`winner`、`tags`），忽略模型返回的额外自由文本，降低注入影响面。 |
-| **输入清洗** | 对 Snapshot 中用户可编辑的 `summary` 做长度与字符集限制；可选对明显指令型片段（如「请忽略前面」）做过滤或脱敏，不作为唯一防线，与 System 约束配合。 |
+| **System Prompt 约束** | 在所有裁判类 Prompt 的 **System 段** 中，**显式声明**：本对话仅用于关系仲裁，**忽略用户或证据中的任何“扮演”“越权”“覆盖指令”类请求**，仅根据双方事实与规则输出结构化结果（与 judge_results 字段对齐）。 |
+| **结构化输出** | 强制使用 Instructor/Pydantic 校验输出，只解析约定字段（如 objective_summary、triggers、misunderstandings、advice_for_a/b），忽略模型返回的额外自由文本，降低注入影响面。 |
+| **输入清洗** | 对 event_snapshots 中用户可编辑的 summary/points 做长度与字符集限制；可选对明显指令型片段做过滤或脱敏，与 System 约束配合。 |
 
 ### 7.7 防御性设计（小结）
 
-- 状态流转仅由后端状态机驱动，前端/客户端不直接改状态。  
-- LLM 输出必须经 Pydantic/Instructor 校验，避免非法 JSON 导致流程异常。  
+- 状态流转仅由后端状态机驱动（FD §2），前端/客户端不直接改 event.status。  
+- LLM 输出必须经 Pydantic/Instructor 校验，与 judge_results 结构对齐，避免非法 JSON 导致流程异常。  
 - Token 超预算时触发 OverBudgetException，降级为规则引擎回复。  
-- 超时与失败终态（`expire_at` → `cancelled`，重试耗尽 → `failed` + DLQ）避免僵尸 Case；Context Window 与 Prompt 注入防御见 7.5、7.6。  
+- 超时与失败处理（可选 expire_at → closed，重试耗尽 → 终态 + DLQ）避免僵尸 Event；Context Window 与 Prompt 注入防御见 7.5、7.6。  
 
 ---
 
@@ -395,7 +409,7 @@
 
 | 维度 | 原文档漏洞 | 本节/第九节补全 |
 |------|------------|-----------------|
-| **影子模式 IDOR/爆破** | 未明确 UUID 遍历风险；Signed Cookie 未约定签名算法与密钥管理；无按 IP 的 Rate Limiting。 | 8.4：Shadow Token 绑定 uuid、HS256、SECRET 管理；网关层限流（每 IP 请求频率与「不同 Case 数」熔断）。 |
+| **影子模式 IDOR/爆破** | 未明确 public_id 遍历风险；Signed Cookie 未约定签名算法与密钥管理；无按 IP 的 Rate Limiting。 | 8.4：Shadow Token 绑定 event public_id、HS256、SECRET 管理；网关层限流（每 IP 请求频率与「不同 Event 数」熔断）。 |
 | **成本与资源滥用** | 未约定上传频率、图片压缩策略、Token 熔断报警阈值。 | 8.5：上传频率（如 10 张/天）、前后端压缩策略、Token 熔断阈值与告警；Part 9 表列 .env 配置。 |
 | **可观测性** | 未约定结构化日志与 trace_id，故障难以串联 Next.js → API → Celery。 | 9.4：结构化日志规范、trace_id 全链路传递与落库。 |
 
@@ -404,7 +418,7 @@
 | Token 类型 | 形式 | 发放时机 | 权限 | 有效期 |
 |------------|------|----------|------|--------|
 | **Standard Token** | JWT | 登录/注册后 | 完整业务权限 | 7 天 |
-| **Shadow Token** | Signed Cookie | B 点击分享链接时自动种下 | ReadOnly，**仅限 Cookie 内绑定的该 `uuid` 的 Case** | 24 小时 |
+| **Shadow Token** | Signed Cookie | B 点击分享链接时自动种下 | ReadOnly，**仅限 Cookie 内绑定的该 Event 的 `public_id`** | 24 小时 |
 
 - **转化**：B 注册后，Shadow 数据的 Ownership 自动转移给新 User ID。
 
@@ -418,20 +432,20 @@
 
 ### 8.3 成本控制 (Cost Ops)
 
-- **Token 预算**：单次请求 Token 上限 4k，单 Case 总消耗上限 20k；超过触发 OverBudgetException，降级为规则引擎回复。  
+- **Token 预算**：单次请求 Token 上限 4k，单 Event 总消耗上限 20k；超过触发 OverBudgetException，降级为规则引擎回复。  
 - **Cache**：相同 OCR 图片哈希直接读 Redis 缓存，不重复调用 OCR API。  
 - **Token 熔断报警**：当单用户/单 IP 在滑动窗口（如 1 小时）内累计 Token 消耗超过阈值（如 50k），或单日 OCR 调用次数超过阈值时，触发**告警**（邮件/钉钉），并可选对该用户/IP 进行临时限流或降级。阈值由环境变量配置（见 9.5 .env 示例）。  
 
 ### 8.4 影子模式越权与爆破防护 (IDOR & Brute-force)
 
-**风险**：攻击者通过枚举/遍历 UUID 访问他人 Case（IDOR）；或单 IP 高频请求大量不同 Case（爆破/爬取）。
+**风险**：攻击者通过枚举/遍历 public_id 访问他人 Event（IDOR）；或单 IP 高频请求大量不同 Event（爆破/爬取）。
 
 | 措施 | 约定 |
 |------|------|
-| **Shadow Token 绑定** | Cookie 内**必须包含当前 Case 的 `uuid`**（及过期时间）。服务端校验：仅当请求的 `uuid` 与 Cookie 中签名的 `uuid` 一致时才允许访问；禁止「持任意 Shadow Cookie 访问任意 Case」。 |
-| **签名算法与密钥** | Shadow Token 使用 **HMAC-SHA256（HS256）** 对 `uuid + expiry` 签名；密钥由 **9.5 .env** 提供（SECRET_KEY 或 SHADOW_COOKIE_SECRET，与 JWT 隔离），仅服务端持有，不得写入前端。密钥轮换时需兼容旧 Cookie 的短暂重叠期。 |
-| **Rate Limiting（网关层）** | 在 API 网关/Middleware 层对**按 IP** 的请求做限流：**(1)** 通用：如每 IP 每分钟最多 120 次请求（可配置）；**(2)** 防爆破：同一 IP 在**短时间窗口（如 1 分钟）内访问的「不同 Case uuid」数量**上限（如 20）；超过则返回 429，并可选加入临时封禁名单。限流计数使用 Redis，键含 IP 与时间窗口。 |
-| **UUID 不可预测** | Case 的 `uuid` 必须为**加密学随机**（如 UUIDv4 或 128bit 随机数编码），禁止自增或可推测序列，降低枚举可行性。 |
+| **Shadow Token 绑定** | Cookie 内**必须包含当前 Event 的 `public_id`**（及过期时间）。服务端校验：仅当请求的 eventId 与 Cookie 中签名的 public_id 一致时才允许访问；禁止「持任意 Shadow Cookie 访问任意 Event」。 |
+| **签名算法与密钥** | Shadow Token 使用 **HMAC-SHA256（HS256）** 对 `public_id + expiry` 签名；密钥由 **9.5 .env** 提供（SECRET_KEY 或 SHADOW_COOKIE_SECRET，与 JWT 隔离），仅服务端持有，不得写入前端。密钥轮换时需兼容旧 Cookie 的短暂重叠期。 |
+| **Rate Limiting（网关层）** | 在 API 网关/Middleware 层对**按 IP** 的请求做限流：**(1)** 通用：如每 IP 每分钟最多 120 次请求（可配置）；**(2)** 防爆破：同一 IP 在**短时间窗口（如 1 分钟）内访问的「不同 Event 的 public_id」数量**上限（如 20）；超过则返回 429，并可选加入临时封禁名单。限流计数使用 Redis，键含 IP 与时间窗口。 |
+| **public_id 不可预测** | Event 的 `public_id` 必须为**加密学随机**（如 ULID/雪花ID 或 128bit 随机数编码），禁止自增或可推测序列，降低枚举可行性。 |
 
 ### 8.5 成本与资源滥用防护 (Cost & DoS)
 
@@ -439,7 +453,7 @@
 
 | 措施 | 约定 |
 |------|------|
-| **上传频率限制** | **单用户**（按 user_id，未登录按 IP）**每自然日**上传证据图片数量上限（如 **10 张/天**）；单 Case 草稿期内上传总数上限（如 20 张）。超过返回 429 与明确错误信息。计数存 Redis，键含 user_id/IP 与日期。 |
+| **上传频率限制** | **单用户**（按 user_id，未登录按 IP）**每自然日**上传证据图片数量上限（如 **10 张/天**）；单 Event 草稿期内上传总数上限（如 20 张）。超过返回 429 与明确错误信息。计数存 Redis，键含 user_id/IP 与日期。 |
 | **单文件大小** | 单张图片 **MAX_UPLOAD_SIZE**（如 5MB），超过直接拒绝（413）。由网关或应用层校验。 |
 | **图片压缩策略** | **前端优先**：上传前对图片进行压缩/缩略（如最大边长 1920px、质量 0.8），减少传输与 OCR 成本；**后端兜底**：服务端在调用 OCR 前可再次压缩或缩略，超过分辨率/大小阈值则拒绝或降质处理。压缩参数可配置。 |
 | **Token 熔断与告警** | 见 8.3；阈值配置见 9.5。 |
@@ -448,7 +462,7 @@
 
 ## 九、运维与工程化 (Operations & Engineering)
 
-**启动演练与运维就绪度 (Pre-flight)**：以下补丁已纳入本节，避免 `start.sh` 与本地冷启动受阻：**(1)** 9.5 已与 10.5 单元经济对齐，含 TOKEN_BUDGET / OCR 阈值及 DATABASE_URL、REDIS_URL、API Key 占位；**(2)** 9.6 定义 seed_db.py 预置数据（测试用户、Case 状态、Tags/向量）；**(3)** 9.3.1 约定 Postgres 使用 pgvector 镜像（如 `pgvector/pgvector:pg16`），并给出 docker-compose 片段。
+**启动演练与运维就绪度 (Pre-flight)**：以下补丁已纳入本节，避免 `start.sh` 与本地冷启动受阻：**(1)** 9.5 已与 10.5 单元经济对齐，含 TOKEN_BUDGET / OCR 阈值及 DATABASE_URL、REDIS_URL、API Key 占位；**(2)** 9.6 定义 seed_db.py 预置数据（测试用户、Event 状态、judge_results 等）；**(3)** 9.3.1 约定 Postgres 使用 pgvector 镜像（如 `pgvector/pgvector:pg16`），并给出 docker-compose 片段。
 
 ### 9.1 工程目录结构 (Project Structure)
 
@@ -461,7 +475,7 @@
 │   ├── /app
 │   │   ├── /api
 │   │   │   ├── /v1                   # [Core] 核心业务
-│   │   │   │   ├── /cases            # 案件：Draft, Commit, Join, Verdict
+│   │   │   │   ├── /events            # 事件：创建、commit-a、b-agree、commit-b、judge-result
 │   │   │   │   ├── /calendar         # 情感日历：Timeline, Insight
 │   │   │   │   ├── /users            # 用户：Profile, Auth
 │   │   │   │   └── __init__.py
@@ -475,12 +489,12 @@
 │   │   │   ├── middleware.py         # PII 脱敏、CORS、Rate Limiting（见 8.4）
 │   │   │   └── exceptions.py         # CostOverrun, UnsafeContent 等
 │   │   ├── /crud                     # [DB] 原子 CRUD
-│   │   │   ├── crud_case.py
+│   │   │   ├── crud_event.py
 │   │   │   └── crud_user.py
-│   │   ├── /models                   # [Schema] SQLModel 表定义
-│   │   │   ├── case.py
+│   │   ├── /models                   # [Schema] SQLModel 表定义（与 DB 文档一致）
+│   │   │   ├── event.py
 │   │   │   ├── user.py
-│   │   │   ├── verdict.py
+│   │   │   ├── judge_result.py
 │   │   │   └── enums.py
 │   │   ├── /schemas                  # [Contract] Pydantic 请求/响应 & LLM 输出
 │   │   │   ├── request.py
@@ -536,7 +550,7 @@
 ### 9.2 关键工程脚本
 
 - **generate_client.sh**：由 OpenAPI 规范生成前端 TypeScript 类型与 API 客户端，与后端 Pydantic 严格对齐。  
-- **seed_db.py**：填充测试数据（预置用户、Case、Verdict/Tags，见 9.6）。  
+- **seed_db.py**：填充测试数据（预置用户、Event、judge_results 等，见 9.6）。  
 - **run_evals.py**：运行 AI 效果评估（可与 Golden Dataset 配合）。  
 
 ### 9.3 部署与运行
@@ -594,11 +608,11 @@ volumes:
 
 | 预置内容 | 说明 |
 |----------|------|
-| **测试用户** | 至少 2 个：**User A**（initiator）、**User B**（invitee），用于模拟 A 创建 Case、B 通过链接介入。无需预置「Shadow 用户」——影子模式即 B 未注册时无 `user_id`，`Case.user_b_id` 为 NULL；B 用分享链接访问时由服务端下发 Shadow Cookie。 |
-| **预置 Case 状态** | **(1)** 1 个 `draft_a`：供 A 继续编辑并执行 commit_a；(2) 1 个 `waiting_b`：含固定 `uuid`（如 `seed-waiting-b-001`），并写入 `expire_at`（如 24h 后），供 B 打开链接体验 preview / join（Shadow 或登录为 User B）。可选：1 个 `judged` + 1 个 `archived`，便于测试日历与 insight。 |
-| **预置 Tags / 向量** | Verdict 的 `tags` 为 JSONB 数组（如 `["金钱","沟通"]`），无独立 Tag 表。为便于**情感日历 insight** 与 pgvector 聚类有数据：可 seed 1～2 条 **Verdict**（关联到上述 archived Case），`tags` 使用约定标签集，如 `["金钱","沟通","家务","信任"]`；`embedding` 可为占位向量（如全 0 或随机 1536 维），仅保证 schema 与检索不报错。若产品有「标签候选列表」，可在代码中维护常量列表供前端下拉，与 seed 的 Verdict.tags 一致即可。 |
+| **测试用户** | 至少 2 个：**User A**（initiator）、**User B**（invitee），用于模拟 A 创建 Event、B 通过链接或 relationship 介入。无需预置「Shadow 用户」——影子模式即 B 未注册时由分享链接访问，服务端下发 Shadow Cookie（绑定 event public_id）。 |
+| **预置 Event 状态** | **(1)** 1 个 `draft`：供 A 继续编辑并执行 commit-a；**(2)** 1 个 `waiting_b`：含固定 `public_id`（如 `seed-waiting-b-001`），可选写入 `expire_at`（如 24h 后），供 B 打开链接体验 snapshot-a / b-agree 或 commit-b（Shadow 或登录为 User B）。可选：1 个 `judged`、1 个 `reviewed` 或 `closed`，便于测试日历与复盘。 |
+| **预置 judge_results / 复盘** | judge_results 表与 events 1:1，无独立 Tags 表；若需**日历或洞察**有数据，可 seed 1～2 条 **judge_results**（关联到上述已 judged 的 Event），objective_summary、triggers、advice_for_a/b 等填示例内容。若产品有「标签候选」，可在代码中维护常量与 judge_results 的 triggers 等一致。 |
 
-**执行顺序建议**：`alembic upgrade head` → `seed_db.py`（先 User，再 Case，再 Verdict）。`start.sh` 或 README 中注明：首次本地启动需执行 `python scripts/seed_db.py` 或 `make seed`。
+**执行顺序建议**：`alembic upgrade head` → `seed_db.py`（先 users/relationships，再 events，再 event_snapshots、judge_results、reviews 等）。`start.sh` 或 README 中注明：首次本地启动需执行 `python scripts/seed_db.py` 或 `make seed`。
 
 ### 9.4 可观测性与调试 (Observability)
 
@@ -606,10 +620,10 @@ volumes:
 
 | 项 | 约定 |
 |----|------|
-| **结构化日志 (Structured Logging)** | 所有服务（Next.js 服务端、FastAPI、Celery Worker）输出 **JSON 格式** 日志，字段至少包含：`timestamp`、`level`、`message`、**`trace_id`**、`service`（如 `api` / `worker`）、可选 `span_id`、`user_id`、`case_id`。禁止仅输出非结构化的 "Error" 字符串。 |
+| **结构化日志 (Structured Logging)** | 所有服务（Next.js 服务端、FastAPI、Celery Worker）输出 **JSON 格式** 日志，字段至少包含：`timestamp`、`level`、`message`、**`trace_id`**、`service`（如 `api` / `worker`）、可选 `span_id`、`user_id`、`event_id`。禁止仅输出非结构化的 "Error" 字符串。 |
 | **trace_id 全链路** | 请求从 Next.js 或网关进入时生成 **trace_id**（如 UUIDv4）；在调用 FastAPI 时通过 Header（如 `X-Trace-Id`）传递；FastAPI 在调用 Celery 任务时将 **trace_id 写入任务参数或消息头**，Worker 执行时从任务上下文中读取并写入本机日志与错误上报。同一请求/任务链使用同一 trace_id，便于检索与串联。**响应头**：所有 API 响应（含错误）均返回 **X-Trace-Id**（见 6.5），前端可在用户报错时提供给客服。 |
 | **错误分类** | 日志与告警中区分 **错误类型**（如 `ocr_error`、`llm_timeout`、`llm_rejected`、`worker_crash`、`validation_error`），便于快速定位；DLQ 与 `task_failures` 表记录 `trace_id`，与日志关联。 |
-| **敏感信息** | 日志中**禁止**输出 PII、完整 Cookie/Token、原始图片内容；可输出 case_id、uuid（已为不可预测 ID）、错误码与简短 message。 |
+| **敏感信息** | 日志中**禁止**输出 PII、完整 Cookie/Token、原始图片内容；可输出 event_id、public_id（已为不可预测 ID）、错误码与简短 message。 |
 
 ### 9.5 环境变量与安全配置（.env.example 关键项）
 
@@ -624,12 +638,12 @@ volumes:
 | **OPENAI_API_KEY**（或所用 LLM 提供商 Key） | 判决/摘要等 LLM 调用 | 占位，部署时填入 |
 | **OCR_API_KEY**（或所用 OCR 提供商 Key） | 图片文字识别 | 占位，部署时填入 |
 | **RATE_LIMIT_REQUESTS_PER_MINUTE** | 每 IP 每分钟最大请求数 | 120 |
-| **RATE_LIMIT_CASES_PER_MINUTE_PER_IP** | 每 IP 每分钟可访问的**不同 Case uuid** 数量上限（防爆破） | 20 |
+| **RATE_LIMIT_EVENTS_PER_MINUTE_PER_IP** | 每 IP 每分钟可访问的**不同 Event 的 public_id** 数量上限（防爆破） | 20 |
 | **MAX_UPLOAD_SIZE_MB** | 单张上传图片最大体积（MB） | 5 |
 | **MAX_IMAGES_PER_USER_PER_DAY** | 单用户每日上传证据图片上限 | 10 |
-| **MAX_IMAGES_PER_CASE_DRAFT** | 单 Case 草稿期内上传总数上限 | 20 |
+| **MAX_IMAGES_PER_EVENT_DRAFT** | 单 Event 草稿期内上传总数上限 | 20 |
 | **TOKEN_BUDGET_PER_REQUEST** | 单次 LLM 请求 Token 上限（7.5 / 8.3） | 4096 |
-| **TOKEN_BUDGET_PER_CASE** | 单 Case 总 Token 消耗上限（10.5 成本可控） | 20000 |
+| **TOKEN_BUDGET_PER_EVENT** | 单 Event 总 Token 消耗上限（10.5 成本可控） | 20000 |
 | **TOKEN_ALERT_THRESHOLD_PER_HOUR** | 单用户/IP 每小时 Token 消耗超过此值触发告警 | 50000 |
 | **OCR_ALERT_THRESHOLD_PER_DAY** | 单日 OCR 调用次数超过此值触发告警 | 500（可按采购预算调整） |
 
@@ -641,7 +655,7 @@ volumes:
 
 ### 10.1 测试策略
 
-- **API**：`/tests/api` 接口测试，覆盖核心 Case 流程与日历接口。  
+- **API**：`/tests/api` 接口测试，覆盖核心 Event 流程与日历接口。  
 - **AI 逻辑**：`/tests/services` 使用 Golden Dataset 对判决与洞察逻辑做回归。  
 
 ### 10.2 预留扩展
@@ -653,10 +667,10 @@ volumes:
 
 | 术语 | 含义 |
 |------|------|
-| Case | 单次「争吵/冲突」仲裁单元，含 A/B 双视角与一次判决。 |
-| Snapshot | 某方冻结的事实快照（summary + evidence + mood），JSONB 存储。 |
-| Verdict | AI 判决结果，含 content、winner、tags、embedding、meta_info。 |
-| 影子模式 (Shadow Mode) | B 通过链接以未注册身份参与，使用 Shadow Token。 |
+| Event | 单次「争吵/冲突」仲裁单元（events 表），含 A/B 双视角与一次裁判；状态 draft → waiting_b → judged → reviewed → closed。 |
+| event_snapshots | A/B 冻结事实快照（summary、points_a、points_b），每事件每侧一份，冻结后不可改。 |
+| JudgeResult / judge_results | AI 裁判结果（只读落库），含 objective_summary、triggers、misunderstandings、advice_for_a/b 等；与 Event 1:1。 |
+| 影子模式 (Shadow Mode) | B 通过链接以未注册身份参与，使用 Shadow Token（绑定 event public_id）。 |
 | 罗生门架构 | 双视角独立输入 + 认知偏差识别 + 状态机驱动，不强求输入阶段共识。 |
 
 ### 10.4 核心流程图示 (Mermaid)
@@ -665,34 +679,30 @@ volumes:
 
 #### 10.4.1 全生命周期状态机图 (State Diagram)
 
-- **终态**：`archived`、`cancelled`、`failed` 为终态，仅入边无出边。
-- **cancelled（含超时/撤销）**：可由任意非终态在业务允许时转入（如 A 撤销、定时任务将 waiting_b 超时置为 cancelled）。
-- **failed**：仅由 `processing` 在重试耗尽后转入。
-- **检查结论**：无孤岛状态；cancelled 可从 draft_a / waiting_b / analyzing_b 跳转；failed 仅从 processing 跳转。
+与 **FD §3.3、DB event_status** 一致：`draft` → `waiting_b` → `judged` → `reviewed` → `closed`。
+
+- **终态**：`closed` 为终态；实现上可将「超时未响应」「裁判失败」等也归入 `closed` 或单独终态。
+- **waiting_b 超时**：定时任务扫描 expire_at 后可将 status 置为 `closed`（见 7.2）。
+- **裁判失败**：Celery 重试耗尽后可置为 `closed` 并记录 DLQ（见 7.3）。
 
 ```mermaid
 stateDiagram-v2
-    [*] --> draft_a
-    draft_a --> waiting_b : commit_a (A 提交)
-    draft_a --> cancelled : A 撤销
-    waiting_b --> analyzing_b : B 不同意，进入编辑
-    waiting_b --> processing : B 同意，触发判决
-    waiting_b --> cancelled : 定时任务(expire_at 超时)
-    analyzing_b --> processing : B 提交 snapshot_b
-    analyzing_b --> cancelled : A/B 撤销
-    processing --> judged : Celery 成功
-    processing --> failed : 重试耗尽
-    judged --> archived : 用户归档
-    judged --> archived : 可选自动归档
-    archived --> [*]
-    cancelled --> [*]
-    failed --> [*]
+    [*] --> draft
+    draft --> waiting_b : commit-a (A 提交)
+    draft --> closed : A 撤销（可选）
+    waiting_b --> judged : b-agree (B 同意)
+    waiting_b --> judged : commit-b (B 提交 Snapshot_B)
+    waiting_b --> closed : 定时任务(expire_at 超时)
+    judged --> reviewed : 复盘入历（可选）
+    reviewed --> closed : 关闭（可选）
+    judged --> closed : 关闭（可选）
+    closed --> [*]
 ```
 
 #### 10.4.2 影子模式时序图 (Sequence Diagram)
 
-- **Shadow Token 签发环节**：B 首次通过分享链接访问 **GET /preview** 且服务端校验通过（uuid 有效、Case 为 waiting_b）后，在**该次响应**中通过 **Set-Cookie** 签发 Shadow Token（Signed Cookie，绑定当前 uuid + expiry）。后续 B 在同一浏览器内访问同 Case 的 join/verdict 等均携带此 Cookie，Middleware 校验 Cookie 内 uuid 与请求 path 的 uuid 一致即放行。
-- **转正时数据权属转移**：B 完成注册/登录后，后端将「该 Shadow 会话曾参与的 Case」与新 User ID 关联：将 `Case.user_b_id` 从 NULL 更新为新用户的 `user_id`，并置该 Case 的 Shadow 会话失效（或不再依赖 Cookie，改为 JWT）。此后该 Case 归属为已注册的 B，B 用 Standard Token 即可访问。
+- **Shadow Token 签发环节**：B 首次通过分享链接访问 **GET /events/{eventId}/snapshot-a**（或等价预览接口）且服务端校验通过（event 有效、status=waiting_b）后，在**该次响应**中通过 **Set-Cookie** 签发 Shadow Token（Signed Cookie，绑定当前 event public_id + expiry）。后续 B 在同一浏览器内访问同 Event 的 b-agree/commit-b/judge-result 等均携带此 Cookie，Middleware 校验 Cookie 内 public_id 与请求 path 的 eventId 一致即放行。
+- **转正时数据权属转移**：B 完成注册/登录后，后端将「该 Shadow 会话曾参与的 Event」与新 User ID 关联（如通过 relationship 补全 B 方、或参与记录表）；此后该 Event 归属为已注册的 B，B 用 Standard Token（JWT）即可访问。
 
 ```mermaid
 sequenceDiagram
@@ -704,21 +714,21 @@ sequenceDiagram
     participant Auth as 用户/注册服务
 
     Note over B,Auth: B 点击分享链接
-    B->>Browser: 打开 /case/{uuid}/preview
-    Browser->>Gateway: GET /api/v1/cases/{uuid}/preview (无 Cookie)
+    B->>Browser: 打开 /events/{eventId} 预览
+    Browser->>Gateway: GET /api/v1/events/{eventId}/snapshot-a (无 Cookie)
     Gateway->>API: 转发 (无 JWT / 无 Shadow)
-    API->>DB: 校验 uuid、status=waiting_b
-    DB-->>API: Case 信息
-    API->>API: 校验通过，生成 Shadow Token (uuid+expiry, HS256 签名)
-    API-->>Gateway: 200 + Set-Cookie(Shadow Token) + Case 预览数据
+    API->>DB: 校验 event public_id、status=waiting_b
+    DB-->>API: Event 信息
+    API->>API: 校验通过，生成 Shadow Token (public_id+expiry, HS256 签名)
+    API-->>Gateway: 200 + Set-Cookie(Shadow Token) + Snapshot_A 数据
     Gateway-->>Browser: 响应 + Set-Cookie
-    Note over Browser: 浏览器保存 Shadow Token（仅限该 uuid）
+    Note over Browser: 浏览器保存 Shadow Token（仅限该 event）
 
     B->>Browser: 查看 A 的控诉后，提交回应
-    Browser->>Gateway: POST /api/v1/cases/{uuid}/join (带 Shadow Cookie)
-    Gateway->>Gateway: 鉴权：Cookie 中 uuid 与 path 的 uuid 一致
+    Browser->>Gateway: POST /api/v1/events/{eventId}/b-agree 或 commit-b (带 Shadow Cookie)
+    Gateway->>Gateway: 鉴权：Cookie 中 public_id 与 path 的 eventId 一致
     Gateway->>API: 转发
-    API->>DB: 更新 snapshot_b / 状态 → analyzing_b 或触发判决
+    API->>DB: 写入 judge_results / 更新 status=judged
     DB-->>API: OK
     API-->>Browser: 200
 
@@ -729,21 +739,21 @@ sequenceDiagram
     Auth-->>Browser: 201 + JWT (Standard Token)
     Browser->>Gateway: 后续请求带 JWT（或一次「转正」调用）
     Gateway->>API: 识别为已注册用户
-    API->>DB: 将曾以 Shadow 参与的 Case 的 user_b_id 更新为 user_id
-    Note over DB: 权属转移：Case.user_b_id = new user_id
+    API->>DB: 将曾以 Shadow 参与的 Event 与 relationship/B 方关联
+    Note over DB: 权属转移：B 方用户身份绑定
     API-->>Browser: 200
-    Note over Browser: 此后该 Case 由 JWT 访问，Shadow Cookie 可废弃
+    Note over Browser: 此后该 Event 由 JWT 访问，Shadow Cookie 可废弃
 ```
 
 ### 10.5 单元经济模型 (Unit Economics) — CTO 审查
 
-基于 Part 4、Part 7、Part 8 的约束，对**单 Case 理论最高成本**做测算，并校验截断与熔断是否足以控本。
+基于 Part 4、Part 7、Part 8 的约束，对**单 Event 理论最高成本**做测算，并校验截断与熔断是否足以控本。
 
 #### 10.5.1 假设场景（理论峰值）
 
 | 项目 | 假设值 | 对应文档约束 |
 |------|--------|--------------|
-| 图片 | A 10 张 + B 10 张 = 20 张（OCR） | 单 Case 上限 20 张（MAX_IMAGES_PER_CASE_DRAFT） |
+| 图片 | A 10 张 + B 10 张 = 20 张（OCR） | 单 Event 上限 20 张（MAX_IMAGES_PER_EVENT_DRAFT） |
 | 文字 | A 描述 2000 字 + B 描述 2000 字 | 7.5 摘要/截断后 summary 最大约 500 字侧 |
 | 历史上下文 | 5000 Token（RAG） | 7.5 RAG 条数上限（如 3 条） |
 | LLM 输出 | 1000 Token | 判决书 + 结构化字段 |
@@ -757,10 +767,10 @@ sequenceDiagram
 | GPT-4o | 2.50 | 10.00 |
 | Claude 3.5 Sonnet | 3.00 | 15.00 |
 
-**单 Case 原始输入（截断前）**：A+B 描述约 4000+4000 + 历史 5000 + 系统/模板约 500 ≈ **13.5k Input**；Output **1k**。  
-文档约定：**单次请求 4k、单 Case 总消耗 20k**（7.5、8.3、9.5）。因此实际会触发**摘要/截断**，判决请求有效输入以 4k 为上限，单 Case 多轮合计不超过 20k。
+**单 Event 原始输入（截断前）**：A+B 描述约 4000+4000 + 历史 5000 + 系统/模板约 500 ≈ **13.5k Input**；Output **1k**。  
+文档约定：**单次请求 4k、单 Event 总消耗 20k**（7.5、8.3、9.5）。因此实际会触发**摘要/截断**，裁判请求有效输入以 4k 为上限，单 Event 多轮合计不超过 20k。
 
-**单 Case 成本（USD）**：
+**单 Event 成本（USD）**：
 
 | 情形 | LLM (GPT-4o) | LLM (Claude 3.5) | OCR (20 张) | 合计 (GPT-4o) | 合计 (Claude) |
 |------|--------------|------------------|-------------|----------------|----------------|
@@ -774,12 +784,12 @@ OCR 按 Google Cloud Vision 档位约 $1.50/千张 ≈ $0.0015/张，20 张 ≈ 
 
 | 机制 | 作用 | 结论 |
 |------|------|------|
-| **单次 4k / 单 Case 20k** | 强制截断与总量上限，防止单 Case 无限膨胀 | **能**：在约定内单 Case 理论最高约 **$0.10–0.12**（含 OCR），可控。 |
-| **OverBudgetException → 规则引擎** | 超预算不调用 LLM，降级为规则回复 | **能**：避免单 Case 突破 20k 继续烧钱。 |
+| **单次 4k / 单 Event 20k** | 强制截断与总量上限，防止单 Event 无限膨胀 | **能**：在约定内单 Event 理论最高约 **$0.10–0.12**（含 OCR），可控。 |
+| **OverBudgetException → 规则引擎** | 超预算不调用 LLM，降级为规则回复 | **能**：避免单 Event 突破 20k 继续烧钱。 |
 | **OCR 结果缓存**（8.3） | 相同图片哈希不重复调 OCR | **能**：重复上传不重复计费，降低实际均值。 |
-| **上传与频率限制**（8.5） | 单用户 10 张/天、单 Case 20 张 | **能**：与 20 张/Case 一致，峰值即上述测算。 |
+| **上传与频率限制**（8.5） | 单用户 10 张/天、单 Event 20 张 | **能**：与 20 张/Event 一致，峰值即上述测算。 |
 
-**结论**：在现行文档约定下，**单 Case 理论最高成本约 $0.05–0.12（视模型与是否触顶）**。若单 Case 收费 ≥ $0.15（或折合当地货币等价），且 OCR 使用类似 Google 档位，**截断与熔断能支撑不亏本**；若免费或低价，需靠其他 Case 或增值收入摊薄。
+**结论**：在现行文档约定下，**单 Event 理论最高成本约 $0.05–0.12（视模型与是否触顶）**。若单 Event 收费 ≥ $0.15（或折合当地货币等价），且 OCR 使用类似 Google 档位，**截断与熔断能支撑不亏本**；若免费或低价，需靠其他 Event 或增值收入摊薄。
 
 #### 10.5.4 成本过高时的优化建议
 
@@ -787,9 +797,9 @@ OCR 按 Google Cloud Vision 档位约 $1.50/千张 ≈ $0.0015/张，20 张 ≈ 
 |--------|------|----------|
 | **OCR 结果缓存**（文档已有） | 同图哈希命中 Redis 即不调 OCR | 重复证据场景可显著降 OCR 成本。 |
 | **Prompt 压缩** | 对 summary/evidence 做摘要模型或更强截断（如 300 字 + 前 3 条 evidence） | 单次请求稳定压在 4k 内，甚至降至 2–3k，LLM 成本再降约 30–50%。 |
-| **判决单次调用** | 确保一个 Case 只触发一次判决 LLM 调用，避免多轮对话超 20k | 与 7.1/7.5 一致，避免“多轮叠加”超支。 |
-| **低成本模型兜底** | 非关键路径或降级时使用更便宜模型（如 GPT-4o-mini / Haiku） | 降级场景下单 Case 可再降约 50%+。 |
-| **图片压缩与张数** | 前端压缩 + 单 Case 上限 20 张（文档已有）；可考虑默认 5 张/侧 | 减少 OCR 张数，直接降 OCR 费用。 |
+| **裁判单次调用** | 确保一个 Event 只触发一次裁判 LLM 调用，避免多轮对话超 20k | 与 7.1/7.5 一致，避免“多轮叠加”超支。 |
+| **低成本模型兜底** | 非关键路径或降级时使用更便宜模型（如 GPT-4o-mini / Haiku） | 降级场景下单 Event 可再降约 50%+。 |
+| **图片压缩与张数** | 前端压缩 + 单 Event 上限 20 张（文档已有）；可考虑默认 5 张/侧 | 减少 OCR 张数，直接降 OCR 费用。 |
 
 ---
 
