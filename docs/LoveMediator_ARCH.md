@@ -31,7 +31,7 @@
 | **适用阶段** | MVP 开发 → 商业化上线 |
 | **核心目标** | 为 AI 辅助编程工具 (Cursor) 提供包含商业背景、核心架构、数据模型及防御性编程规范的完整上下文。 |
 | **目标读者** | 开发（含 AI 辅助）、产品、技术评审、运维 |
-| **修订历史** | v3.0 → v3.1：全局一致性整合；Part 6 增加 6.5 标准响应与错误处理、X-Trace-Id 响应头、6.6 API 契约编号顺延；Part 8/9 安全与运维红队补全；错误码与 .env 配置与第八/九节对齐。v3.1 后续：**以 DB/API/FD 三份功能文档为基准**对 ARCH 进行替换与优化——数据模型与接口契约（Part 6）改为以 **DB_LoveMediator_v1**（events、event_snapshots、judge_results、event_status 等）与 **API_LoveMediator_v1**（统一响应 code/message/data、错误码、路径）为准；核心流程（Part 7）与 **FD_LoveMediator_v1** 状态机与流程一致；全文 Case/Verdict 等术语统一为 Event/JudgeResult（judge_results）、event_status、public_id 等。 |
+| **修订历史** | v3.0 → v3.1：全局一致性整合；Part 6 增加 6.5 标准响应与错误处理、X-Trace-Id 响应头、6.6 API 契约编号顺延；Part 8/9 安全与运维红队补全；错误码与 .env 配置与第八/九节对齐。v3.1 后续：**以 DB/API/FD 三份功能文档为基准**对 ARCH 进行替换与优化——数据模型与接口契约（Part 6）改为以 **DB_LoveMediator_v1**（events、event_snapshots、judge_results、event_status 等）与 **API_LoveMediator_v1**（统一响应 code/message/data、错误码、路径）为准；核心流程（Part 7）与 **FD_LoveMediator_v1** 状态机与流程一致；全文 Case/Verdict 等术语统一为 Event/JudgeResult（judge_results）、event_status、public_id 等。v3.2：**前端技术栈由 Next.js + Shadcn UI 调整为 TypeScript + React 18 + Vite 5 + Tailwind CSS 3**，新增 **FE_LoveMediator_v1** 前端技术文档；ARCH 中 Part 5（架构与技术栈）、Part 9（前端目录结构与可观测性）同步更新以反映实际前端选型。 |
 
 ---
 
@@ -94,7 +94,7 @@
 
 - **影子模式与裂变**：B 通过「分享链接」参与，**零安装、零注册**即可打开。Web 链接即开即用，无需应用商店审核与下载摩擦，转化路径最短，最适合验证「A 拉 B」的裂变假设。
 - **迭代与实验**：前后端分离 + 单域名发布，功能与 A/B 可快速上线，无需发版审核，适合 MVP 快速试错与数据驱动调整。
-- **成本与复用**：一套前端技术栈（Next.js + PWA）覆盖桌面与移动端；后续若验证通过，再按需追加小程序或 Native 作为增量渠道，数据与 API 可复用。
+- **成本与复用**：一套前端技术栈（React + Vite + PWA）覆盖桌面与移动端；后续若验证通过，再按需追加小程序或 Native 作为增量渠道，数据与 API 可复用。
 
 **PWA 的补充价值**：支持「添加到主屏」、离线缓存关键页、可选 Push，在保持 Web 分发优势的前提下，部分逼近 App 的留存与触达，便于观察留存与复访数据。
 
@@ -133,13 +133,13 @@
 
 ### 5.1 高层架构
 
-采用 **Next.js (SSR) + FastAPI + Celery** 的全异步分离架构。MVP 阶段**客户端为 Web（H5 + PWA）**，由 Next.js 统一交付；详见 4.4 MVP 交付形态。
+采用 **React (Vite SPA) + FastAPI + Celery** 的前后端分离全异步架构。MVP 阶段**客户端为 Web（H5 + PWA）**，由 React + Vite 构建的 SPA 交付；详见 4.4 MVP 交付形态，前端详细设计见 `FE_LoveMediator_v1.md`。
 
 ### 5.2 分层说明
 
 | 层级 | 名称 | 职责与要点 |
 |------|------|------------|
-| **客户端接入层 (Client Access)** | 前端 + 分享与拉新 | 影子模式：B 通过携带 `shadow_token` 的链接查看 A 的控诉并轻量回应，无需注册/下载 App。动态分享卡片：后端生成含「案件摘要/证据数量」的 OG 图，用于微信分享，提高点击率。 |
+| **客户端接入层 (Client Access)** | React SPA (Vite) + 分享与拉新 | Mobile-first SPA，React Router 路由、Zustand 状态管理、TanStack Query 服务端缓存、Tailwind CSS 样式。影子模式：B 通过携带 `shadow_token` 的链接查看 A 的控诉并轻量回应，无需注册/下载 App。微信分享 OG 信息由后端 API 或独立预渲染服务提供。详见 `FE_LoveMediator_v1.md`。 |
 | **API 网关与编排层 (Orchestration)** | FastAPI | 鉴权、限流、状态机流转。Privacy Middleware：出站拦截器，响应返回前正则扫描并掩码 PII（手机号、真名），确保合规。 |
 | **智能服务层 (Intelligence Service)** | Prompt + LLM | Prompt Engine：基于 Jinja2 的模板管理，Prompt 与代码解耦。Structured Output：Instructor 或 Pydantic 校验 LLM 输出，确保 100% JSON 格式安全。 |
 | **数据持久层 (Persistence)** | PostgreSQL (Supabase) + pgvector | 业务数据存储；pgvector 存历史判决 Embedding，用于情感日历的冲突聚类（如「本月第 3 次因家务争吵」）。 |
@@ -148,7 +148,11 @@
 
 | 模块 | 选型 | 核心理由 |
 |------|------|----------|
-| Frontend | Next.js + TypeScript | SSR 对 SEO 和微信分享友好；TS 保证类型安全。 |
+| Frontend | React 18 + Vite 5 + TypeScript (strict) | Vite 冷启动与 HMR 极快，适合 MVP 快速迭代；TS strict 保证类型安全。 |
+| Frontend 样式 | Tailwind CSS 3 | 原子化 CSS，与 demo.html 设计系统（milk/coffee/accent 色彩体系）对齐。 |
+| Frontend 路由 | React Router 7 | SPA 路由，支持嵌套布局与路由守卫。 |
+| Frontend 状态 | Zustand + TanStack Query | Zustand 管理客户端状态（Auth/UI），TanStack Query 管理服务端缓存与请求。 |
+| Frontend 动画 | Framer Motion | 页面切换、BottomSheet 手势拖拽、组件入场动画。 |
 | Backend | Python (FastAPI) | AI 原生语言，生态丰富。 |
 | ORM | SQLModel (SQLAlchemy) | 结合 Pydantic 的类型校验与 ORM 能力。 |
 | Migrations | Alembic | 数据库版本控制（Cursor 生成迁移脚本必备）。 |
@@ -519,21 +523,44 @@
 │   ├── pyproject.toml                # 或 requirements.txt
 │   └── start.sh                      # Migration + Uvicorn + Worker
 │
-├── /frontend (Next.js)
+├── /frontend (React + Vite + Tailwind)
 │   ├── /public
+│   │   ├── manifest.json              # PWA manifest
+│   │   └── /icons                     # PWA 图标
 │   ├── /src
-│   │   ├── /app                      # App Router
-│   │   │   ├── /case/[uuid]          # 案件详情（SSR，动态 OG）
-│   │   │   ├── /calendar
-│   │   │   └── page.tsx
+│   │   ├── main.tsx                   # 应用入口
+│   │   ├── App.tsx                    # 根组件，路由挂载
+│   │   ├── /api                       # Axios 实例、各模块请求函数
+│   │   │   ├── client.ts             # baseURL、拦截器、Token 注入、自动刷新
+│   │   │   ├── auth.ts / events.ts / calendar.ts / elf.ts
+│   │   │   └── /generated            # OpenAPI 自动生成的类型与客户端（可选）
+│   │   ├── /types                     # 全局类型（api.ts、auth.ts、event.ts、calendar.ts、enums.ts）
+│   │   ├── /stores                    # Zustand 状态管理
+│   │   │   ├── useAuthStore.ts       # 用户认证（Token、登录/登出）
+│   │   │   ├── useEventStore.ts      # 当前事件 & 调解流程状态机
+│   │   │   └── useUIStore.ts         # UI 状态（导航、弹窗、Sheet）
+│   │   ├── /hooks                     # 自定义 Hooks
+│   │   │   ├── useAuth.ts / useEvent.ts / useChat.ts
+│   │   │   ├── useCalendar.ts / useMediaUpload.ts
+│   │   │   └── ...
+│   │   ├── /pages                     # 页面组件（路由级）
+│   │   │   ├── /auth                 # LoginPage, RegisterPage
+│   │   │   ├── /home                 # HomePage（宠物 + 传话）
+│   │   │   ├── /mediation            # MediationPage（AI 调解室 + 分析流程）
+│   │   │   ├── /calendar             # CalendarPage（月历 + BottomSheet）
+│   │   │   └── /profile              # ProfilePage
 │   │   ├── /components
-│   │   │   ├── /ui                   # 基础组件 (e.g. shadcn/ui)
-│   │   │   └── /business             # Timeline, ChatBubble, EvidenceUploader
-│   │   ├── /hooks                    # use-case-status, use-auth 等
-│   │   ├── /lib                      # api-client, utils
-│   │   └── /types                    # schema.d.ts 与后端 Pydantic 对齐
-│   ├── next.config.js
+│   │   │   ├── /ui                   # 基础组件（Button、Modal、BottomSheet、Toast 等）
+│   │   │   ├── /layout               # AppShell、BottomNav、PageHeader
+│   │   │   └── /business             # 业务组件（chat/、mediation/、home/、calendar/、profile/）
+│   │   ├── /lib                       # 工具函数（cn.ts、storage.ts、imageCompress.ts、date.ts、constants.ts）
+│   │   └── /styles
+│   │       └── index.css             # Tailwind 入口 + 全局样式
+│   ├── index.html
+│   ├── vite.config.ts                 # Vite 配置（含 vite-plugin-pwa）
 │   ├── tailwind.config.ts
+│   ├── tsconfig.json
+│   ├── postcss.config.js
 │   └── package.json
 │
 ├── /scripts
@@ -616,12 +643,12 @@ volumes:
 
 ### 9.4 可观测性与调试 (Observability)
 
-**目标**：生产环境出现「判决生成失败」时，能区分是 OCR、LLM 还是 Worker 问题，并通过 **trace_id** 串联 Next.js → FastAPI → Celery 全链路。
+**目标**：生产环境出现「判决生成失败」时，能区分是 OCR、LLM 还是 Worker 问题，并通过 **trace_id** 串联 Frontend → FastAPI → Celery 全链路。
 
 | 项 | 约定 |
 |----|------|
-| **结构化日志 (Structured Logging)** | 所有服务（Next.js 服务端、FastAPI、Celery Worker）输出 **JSON 格式** 日志，字段至少包含：`timestamp`、`level`、`message`、**`trace_id`**、`service`（如 `api` / `worker`）、可选 `span_id`、`user_id`、`event_id`。禁止仅输出非结构化的 "Error" 字符串。 |
-| **trace_id 全链路** | 请求从 Next.js 或网关进入时生成 **trace_id**（如 UUIDv4）；在调用 FastAPI 时通过 Header（如 `X-Trace-Id`）传递；FastAPI 在调用 Celery 任务时将 **trace_id 写入任务参数或消息头**，Worker 执行时从任务上下文中读取并写入本机日志与错误上报。同一请求/任务链使用同一 trace_id，便于检索与串联。**响应头**：所有 API 响应（含错误）均返回 **X-Trace-Id**（见 6.5），前端可在用户报错时提供给客服。 |
+| **结构化日志 (Structured Logging)** | 后端服务（FastAPI、Celery Worker）输出 **JSON 格式** 日志，字段至少包含：`timestamp`、`level`、`message`、**`trace_id`**、`service`（如 `api` / `worker`）、可选 `span_id`、`user_id`、`event_id`。禁止仅输出非结构化的 "Error" 字符串。前端（React SPA）在错误上报时附带从响应头获取的 `X-Trace-Id`。 |
+| **trace_id 全链路** | 请求从前端或网关进入时生成 **trace_id**（如 UUIDv4）；前端 Axios 拦截器可在请求头中传递 `X-Trace-Id`；FastAPI 在调用 Celery 任务时将 **trace_id 写入任务参数或消息头**，Worker 执行时从任务上下文中读取并写入本机日志与错误上报。同一请求/任务链使用同一 trace_id，便于检索与串联。**响应头**：所有 API 响应（含错误）均返回 **X-Trace-Id**（见 6.5），前端可在用户报错时提供给客服。 |
 | **错误分类** | 日志与告警中区分 **错误类型**（如 `ocr_error`、`llm_timeout`、`llm_rejected`、`worker_crash`、`validation_error`），便于快速定位；DLQ 与 `task_failures` 表记录 `trace_id`，与日志关联。 |
 | **敏感信息** | 日志中**禁止**输出 PII、完整 Cookie/Token、原始图片内容；可输出 event_id、public_id（已为不可预测 ID）、错误码与简短 message。 |
 

@@ -20,11 +20,18 @@
 - **迁移**：数据库变更一律使用 `alembic`。
 - **Postgres**：本地/Docker 使用**带 pgvector 的镜像**（如 `pgvector/pgvector:pg16`），见 ARCH §9.3.1。
 
-## 前端 (Next.js / TypeScript)
-- **框架**：Next.js 14+（App Router）。
-- **样式**：Tailwind CSS + Shadcn UI。
+## 前端 (React + Vite + TypeScript)
+- **框架**：React 18 + Vite 5（SPA）。
+- **样式**：Tailwind CSS 3（设计系统：milk/coffee/accent 色彩体系，详见 `FE_LoveMediator_v1.md` §4）。
+- **路由**：React Router 7，SPA 路由，带路由守卫（ProtectedRoute）。
+- **状态**：Zustand（客户端状态：Auth/Event/UI）+ TanStack Query（服务端缓存与请求）。
+- **HTTP**：Axios 实例 + 拦截器（Token 注入、自动刷新、统一错误处理）。
 - **类型安全**：严格 TypeScript。优先使用由 OpenAPI 生成的 API 客户端（如 `generate_client.sh` / `npm run gen-api`），避免手写请求函数。
-- **分享**：使用 Next.js OG Image 生成动态分享卡片。
+- **动画**：Framer Motion（页面切换、BottomSheet 拖拽等）。
+- **图标**：Lucide React。
+- **PWA**：vite-plugin-pwa（Service Worker、离线缓存、添加到主屏）。
+- **分享**：微信分享 OG 信息由后端 API 或独立预渲染服务提供（SPA 不做 SSR）。
+- **详细设计**：见 `FE_LoveMediator_v1.md`。
 
 # 协作与工作流
 1. **API 优先**：修改 API 时，先更新 schema（如 `/backend/app/schemas`），再改实现。
@@ -45,7 +52,7 @@
 2. **有据可依**：非 trivial 的逻辑需能在 `LoveMediator_ARCH.md`（或 API/DB/Ops 文档）中找到对应章节。
 3. **依赖白名单**：仅使用已存在于 `pyproject.toml` / `package.json` 的依赖，新增须经用户同意。
 4. **禁止占位逻辑**：不得保留占位实现（如 `// TODO: implement`），要么完整实现，要么明确说明是否 mock。
-5. **版本**：使用稳定、有文档的版本（如 FastAPI、Next.js 14）；除非特别说明，避免已废弃或实验性特性。
+5. **版本**：使用稳定、有文档的版本（如 FastAPI、React 18、Vite 5）；除非特别说明，避免已废弃或实验性特性。
 
 # 关键业务规则（不可违反）
 1. **罗生门原则**：`Event` 使用 `event_snapshots` 分别存储 A/B 冻结快照（side = `a` / `b`，冻结后不可修改）。应用层**禁止将 A/B 快照合并成单一「事实」对象**参与业务决策，始终保留平行视角。
@@ -61,5 +68,5 @@
 4. 对照 ARCH 限制审视 LLM/OCR 成本与 Token 使用。
 
 # 参考与真相源
-- **单一真相源**：`LoveMediator_ARCH.md`（总体架构、数据模型、API、安全、运维、成本与 Runbook），以及配套规格文档：`DB_LoveMediator_v1.md`、`API_LoveMediator_v1.md`、`FD_LoveMediator_v1.md`。
+- **单一真相源**：`LoveMediator_ARCH.md`（总体架构、数据模型、API、安全、运维、成本与 Runbook），以及配套规格文档：`DB_LoveMediator_v1.md`、`API_LoveMediator_v1.md`、`FD_LoveMediator_v1.md`、`FE_LoveMediator_v1.md`（前端技术文档）。
 - 若仓库中存在 `/docs/specs/API_CONTRACT.md`、`/docs/specs/DATABASE.md` 或 `/docs/ops/RUNBOOK.md`，在有这些文件时优先使用其 API/DB/Ops 细节；否则使用 `LoveMediator_ARCH.md` 及上述三份功能文档中的对应章节。
