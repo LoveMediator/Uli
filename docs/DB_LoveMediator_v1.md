@@ -1,4 +1,4 @@
-﻿# LoveMediator 数据库设计文档（DB v1.0）
+# LoveMediator 数据库设计文档（DB v1.0）
 
 ## 1. 文档信息
 - 对应功能文档：`docs/FD_LoveMediator_v1.md`
@@ -119,7 +119,8 @@
 
 约束：
 - `check (user_a_id <> user_b_id)`
-- 唯一活跃关系建议：应用层保证，或加排他约束。
+- 建议在应用层**约定有序对**：存库时保证 `user_a_id < user_b_id`，避免 `(A,B)` 与 `(B,A)` 视为不同记录。
+- 唯一活跃关系推荐使用**部分唯一索引**保证：同一对用户在 `status='active'` 下最多一条记录（见 10 章 SQL 片段）。
 
 索引：
 - `ix_relationships_user_a_id (user_a_id)`
@@ -379,6 +380,7 @@
 
 ### 6.1 commit_a（A 冻结）
 同一事务内：
+0. 对目标事件加**行级锁**：`select * from events where id = ? for update;`
 1. 校验 `events.status='draft'`。
 2. 插入 `event_snapshots(side='a')`。
 3. 更新 `events.status='waiting_b'`。
@@ -386,16 +388,18 @@
 
 ### 6.2 b_agree（B 同意）
 同一事务内：
+0. 对目标事件加**行级锁**：`select * from events where id = ? for update;`
 1. 校验 `events.status='waiting_b'` 且存在 snapshot_a。
-2. 生成并插入 `judge_results`。
+2. 生成并插入 `judge_results`（若已存在则按幂等策略处理，避免重复生成）。
 3. 更新 `events.status='judged'`, `judged_at=now()`。
 4. 写入 `event_state_logs`。
 
 ### 6.3 commit_b（B 不同意后提交）
 同一事务内：
+0. 对目标事件加**行级锁**：`select * from events where id = ? for update;`
 1. 校验 `events.status='waiting_b'`。
 2. 插入 `event_snapshots(side='b')`。
-3. 生成并插入 `judge_results`。
+3. 生成并插入 `judge_results`（若已存在则按幂等策略处理）。
 4. 更新 `events.status='judged'`。
 5. 写入 `event_state_logs`。
 
@@ -467,6 +471,13 @@ create table events (
   updated_at timestamptz not null default now(),
   check (status in ('draft','waiting_b','judged','reviewed','closed'))
 );
+
+-- relationships 正确约束（推荐版本）：
+-- 1）业务约定：入库前保证 user_a_id < user_b_id，避免 (A,B) / (B,A) 重复；
+-- 2）部分唯一索引：同一对用户在 active 状态下最多一条记录。
+create unique index ux_relationships_active_pair
+  on relationships(user_a_id, user_b_id)
+  where status = 'active';
 
 create table event_snapshots (
   id bigserial primary key,
