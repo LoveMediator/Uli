@@ -167,10 +167,24 @@
 
 ### 6.1 设计要点
 
+- **全局约定（与 DB 文档一致）**
+  - 表/字段命名使用 `snake_case`
+  - 时间字段统一 `timestamptz`（UTC）
+  - 主键统一 `bigserial`
+  - 对外标识统一：`public_id varchar(40)`
+  - 每张业务表包含：`created_at`, `updated_at`
+  - 关键数据按需支持软删除字段：`deleted_at`（仅在需要“可恢复/审计”的表启用）
+
 - **events** 表：冲突事件主表，状态机锚点；通过 **relationship_id** 控制共享范围，**initiator_user_id** 为发起方（A）。
 - **event_snapshots** 表：A/B 冻结事实快照，每事件每侧仅一份（`event_id` + `side` 唯一）；**is_frozen=true** 后禁止更新 summary/points_a/points_b/raw_payload（罗生门原则）。
 - **judge_results** 表：裁判结论只读展示，与 Event 1:1；生成后不实时重算，严禁被后续对话覆盖。
-- **relationships**、**users**、**private_sessions**、**private_messages**、**reviews**、**calendar_entries** 等见 DB 文档；所有 API 请求/响应与 Pydantic Schema 严格对齐，类型以本节及后端 `schemas/`、API 文档为准。
+- **relationships** 表：情侣绑定关系与共享域（关系级可见性边界）。
+  - 约束：`user_a_id <> user_b_id`
+  - 推荐应用层约定“有序对入库”：保证 `user_a_id < user_b_id`，避免 `(A,B)` 与 `(B,A)` 重复
+  - 推荐用**部分唯一索引**保证同一对用户在 `status='active'` 下最多一条记录（见 DB 文档 SQL 片段）
+- **users / refresh_tokens / auth_login_logs**：账号、刷新令牌、登录审计与风控（字段/索引见 DB 文档 §5.1）。
+- **event_state_logs / ai_call_logs**：状态流转审计与 LLM 成本审计（字段/索引见 DB 文档 §5.7）。
+- **private_sessions**、**private_messages**、**followup_messages**、**reviews**、**review_versions**、**calendar_entries**、**elf_messages**、**moderation_logs** 等见 DB 文档；所有 API 请求/响应与 Pydantic Schema 严格对齐，类型以本节及后端 `schemas/`、API 文档为准。
 
 ### 6.2 枚举定义（与 DB 一致）
 
@@ -489,7 +503,7 @@
 │   │   │   └── deps.py               # [Auth] 依赖注入（双 Token、DB、Redis）
 │   │   ├── /core                     # [Infra]
 │   │   │   ├── config.py             # Pydantic Settings（含 .env 安全与限流项，见 9.5）
-│   │   │   ├── security.py           # JWT & Signed Cookie（HS256，Shadow 绑定 uuid）
+│   │   │   ├── security.py           # JWT & Signed Cookie（HS256，Shadow 绑定 event public_id）
 │   │   │   ├── middleware.py         # PII 脱敏、CORS、Rate Limiting（见 8.4）
 │   │   │   └── exceptions.py         # CostOverrun, UnsafeContent 等
 │   │   ├── /crud                     # [DB] 原子 CRUD
