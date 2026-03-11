@@ -1,0 +1,1151 @@
+openapi: 3.0.3
+info:
+  title: LoveMediator API
+  version: 1.0.0
+  description: |
+    OpenAPI standard file generated from `docs/API_LoveMediator_v1.md`.
+    All path identifiers such as `eventId`, `reviewId`, `relationshipId`, and `userId`
+    refer to public IDs rather than database primary keys.
+
+servers:
+  - url: /api/v1
+    description: API v1
+
+tags:
+  - name: auth
+    description: Authentication and session management
+  - name: events
+    description: Event mediation flow
+  - name: calendar
+    description: Calendar and review listing
+  - name: reviews
+    description: Review detail and editing
+  - name: elf
+    description: Interaction and moderation
+
+security:
+  - BearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: User registration
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: User login
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Refresh access token
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Refresh successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Logout current session
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events:
+    post:
+      tags: [events]
+      summary: Create event
+      operationId: createEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '200':
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateEventResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events/{eventId}/private-chat/messages:
+    post:
+      tags: [events]
+      summary: Send private chat message
+      operationId: sendPrivateChatMessage
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrivateChatMessageRequest'
+      responses:
+        '200':
+          description: Private chat response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivateChatMessageResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events/{eventId}/commit-a:
+    post:
+      tags: [events]
+      summary: Freeze Snapshot_A
+      operationId: commitA
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitARequest'
+      responses:
+        '200':
+          description: Snapshot_A committed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommitAResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events/{eventId}/invite:
+    get:
+      tags: [events]
+      summary: Get invite page data
+      operationId: getInvite
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: Invite page data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events/{eventId}/snapshot-a:
+    get:
+      tags: [events]
+      summary: Get Snapshot_A preview
+      operationId: getSnapshotA
+      description: B must complete registration or login before calling this endpoint.
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: Snapshot_A preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotAResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events/{eventId}/b-agree:
+    post:
+      tags: [events]
+      summary: B agrees and triggers judgment
+      operationId: bAgree
+      description: B must be authenticated before calling this endpoint.
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BAgreeRequest'
+      responses:
+        '200':
+          description: Judgment triggered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BAgreeResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events/{eventId}/commit-b:
+    post:
+      tags: [events]
+      summary: Submit Snapshot_B and trigger judgment
+      operationId: commitB
+      description: B must be authenticated before calling this endpoint.
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitBRequest'
+      responses:
+        '200':
+          description: Snapshot_B committed and judgment triggered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommitBResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events/{eventId}/judge-result:
+    get:
+      tags: [events]
+      summary: Get stored judge result
+      operationId: getJudgeResult
+      description: Reads stored result only and must not trigger real-time LLM generation.
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: Judge result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JudgeResultResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events/{eventId}/followup-chat/messages:
+    post:
+      tags: [events]
+      summary: Follow-up chat
+      operationId: sendFollowupChatMessage
+      description: Server must build context before calling the LLM.
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FollowupMessageRequest'
+      responses:
+        '200':
+          description: Follow-up reply
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FollowupMessageResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /calendar:
+    get:
+      tags: [calendar]
+      summary: Get monthly calendar overview
+      operationId: getCalendar
+      parameters:
+        - in: query
+          name: month
+          required: true
+          description: Month in `YYYY-MM` format
+          schema:
+            type: string
+            example: '2026-02'
+      responses:
+        '200':
+          description: Calendar overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarMonthResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /calendar/days/{date}/reviews:
+    get:
+      tags: [calendar]
+      summary: Get reviews by day
+      operationId: getCalendarDayReviews
+      parameters:
+        - in: path
+          name: date
+          required: true
+          description: Calendar date in `YYYY-MM-DD` format
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Reviews for the day
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarDayReviewsResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /reviews/{reviewId}:
+    get:
+      tags: [reviews]
+      summary: Get review detail
+      operationId: getReview
+      parameters:
+        - $ref: '#/components/parameters/ReviewId'
+      responses:
+        '200':
+          description: Review detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewDetailResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+    put:
+      tags: [reviews]
+      summary: Update review content
+      operationId: updateReview
+      parameters:
+        - $ref: '#/components/parameters/ReviewId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReviewRequest'
+      responses:
+        '200':
+          description: Review updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateReviewResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /elf/relay:
+    post:
+      tags: [elf]
+      summary: Relay softened message
+      operationId: relayElfMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ElfRelayRequest'
+      responses:
+        '200':
+          description: Relay successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElfRelayResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /elf/moderate:
+    post:
+      tags: [elf]
+      summary: Moderate and soften language
+      operationId: moderateElfMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ElfModerateRequest'
+      responses:
+        '200':
+          description: Moderation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElfModerateResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    EventId:
+      in: path
+      name: eventId
+      required: true
+      description: Event public ID
+      schema:
+        type: string
+        example: ev_001
+    ReviewId:
+      in: path
+      name: reviewId
+      required: true
+      description: Review public ID
+      schema:
+        type: string
+        example: rv_001
+
+  responses:
+    ErrorResponse:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponseEnvelope'
+          examples:
+            unauthorized:
+              value:
+                code: 2001
+                message: 用户名或密码错误
+                data: null
+
+  schemas:
+    EventStatus:
+      type: string
+      enum: [draft, waiting_b, judged, reviewed, closed]
+
+    UserStatus:
+      type: string
+      enum: [active, locked, disabled]
+
+    ApiEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: ok
+        data:
+          description: Response payload
+          nullable: true
+
+    ErrorResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            code:
+              type: integer
+              example: 2001
+            message:
+              type: string
+              example: 用户名或密码错误
+            data:
+              nullable: true
+              example: null
+
+    UserSummary:
+      type: object
+      required: [userId, username, status]
+      properties:
+        userId:
+          type: string
+          example: u_1001
+        username:
+          type: string
+          example: alice_01
+        status:
+          $ref: '#/components/schemas/UserStatus'
+
+    RegisterRequest:
+      type: object
+      required: [username, password, confirmPassword]
+      properties:
+        username:
+          type: string
+          example: alice_01
+        password:
+          type: string
+          example: Pass123456
+        confirmPassword:
+          type: string
+          example: Pass123456
+
+    RegisterResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UserSummary'
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: alice_01
+        password:
+          type: string
+          example: Pass123456
+
+    LoginData:
+      type: object
+      required: [accessToken, refreshToken, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+          example: jwt_access_xxx
+        refreshToken:
+          type: string
+          example: jwt_refresh_xxx
+        expiresIn:
+          type: integer
+          example: 3600
+        user:
+          $ref: '#/components/schemas/UserSummary'
+
+    LoginResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/LoginData'
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          example: jwt_refresh_xxx
+
+    RefreshData:
+      type: object
+      required: [accessToken, expiresIn]
+      properties:
+        accessToken:
+          type: string
+          example: jwt_access_new
+        expiresIn:
+          type: integer
+          example: 3600
+
+    RefreshResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RefreshData'
+
+    LogoutRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          example: jwt_refresh_xxx
+
+    LogoutData:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          example: true
+
+    LogoutResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/LogoutData'
+
+    CreateEventRequest:
+      type: object
+      required: [title, relationshipId]
+      properties:
+        title:
+          type: string
+          example: 2月争吵
+        relationshipId:
+          type: string
+          example: rel_001
+
+    CreateEventData:
+      type: object
+      required: [eventId, status]
+      properties:
+        eventId:
+          type: string
+          example: ev_001
+        status:
+          $ref: '#/components/schemas/EventStatus'
+
+    CreateEventResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/CreateEventData'
+
+    PrivateChatMessageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: 我们昨天因为家务吵架...
+
+    PrivateChatMessageData:
+      type: object
+      required: [reply, sessionId]
+      properties:
+        reply:
+          type: string
+          example: 我先帮你整理事实和双方观点...
+        sessionId:
+          type: string
+          example: ps_001
+
+    PrivateChatMessageResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PrivateChatMessageData'
+
+    CommitARequest:
+      type: object
+      required: [confirmText]
+      properties:
+        confirmText:
+          type: string
+          example: 对，基本是这样
+
+    CommitAData:
+      type: object
+      required: [eventId, status, snapshotAId]
+      properties:
+        eventId:
+          type: string
+          example: ev_001
+        status:
+          type: string
+          enum: [waiting_b]
+        snapshotAId:
+          type: string
+          example: sa_001
+
+    CommitAResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/CommitAData'
+
+    InviteData:
+      type: object
+      required: [eventId, status, title, inviteMessage, requiresAuth]
+      properties:
+        eventId:
+          type: string
+          example: ev_001
+        status:
+          type: string
+          enum: [waiting_b]
+        title:
+          type: string
+          example: 2月争吵
+        inviteMessage:
+          type: string
+          example: 对方邀请你参与本次事件，请先登录后继续。
+        requiresAuth:
+          type: boolean
+          example: true
+
+    InviteResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/InviteData'
+
+    SnapshotA:
+      type: object
+      required: [summary, pointsA, pointsB]
+      properties:
+        summary:
+          type: string
+          example: ...
+        pointsA:
+          type: array
+          items:
+            type: string
+        pointsB:
+          type: array
+          items:
+            type: string
+
+    SnapshotAData:
+      type: object
+      required: [eventId, status, snapshotA]
+      properties:
+        eventId:
+          type: string
+          example: ev_001
+        status:
+          type: string
+          enum: [waiting_b]
+        snapshotA:
+          $ref: '#/components/schemas/SnapshotA'
+
+    SnapshotAResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/SnapshotAData'
+
+    BAgreeRequest:
+      type: object
+      required: [agree]
+      properties:
+        agree:
+          type: boolean
+          enum: [true]
+          example: true
+
+    BAgreeData:
+      type: object
+      required: [eventId, status, judgeResultId]
+      properties:
+        eventId:
+          type: string
+          example: ev_001
+        status:
+          type: string
+          enum: [judged]
+        judgeResultId:
+          type: string
+          example: jr_001
+
+    BAgreeResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/BAgreeData'
+
+    CommitBRequest:
+      type: object
+      required: [summary, pointsA, pointsB]
+      properties:
+        summary:
+          type: string
+          example: 我认为争吵是因为沟通方式...
+        pointsA:
+          type: array
+          items:
+            type: string
+        pointsB:
+          type: array
+          items:
+            type: string
+
+    CommitBData:
+      type: object
+      required: [eventId, status, snapshotBId, judgeResultId]
+      properties:
+        eventId:
+          type: string
+          example: ev_001
+        status:
+          type: string
+          enum: [judged]
+        snapshotBId:
+          type: string
+          example: sb_001
+        judgeResultId:
+          type: string
+          example: jr_001
+
+    CommitBResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/CommitBData'
+
+    JudgeAnalysis:
+      type: object
+      required: [triggers, misunderstandings, adviceForA, adviceForB]
+      properties:
+        triggers:
+          type: array
+          items:
+            type: string
+        misunderstandings:
+          type: array
+          items:
+            type: string
+        adviceForA:
+          type: array
+          items:
+            type: string
+        adviceForB:
+          type: array
+          items:
+            type: string
+
+    JudgeResultData:
+      type: object
+      required:
+        [judgeResultId, eventId, status, objectiveSummary, analysis, createdAt]
+      properties:
+        judgeResultId:
+          type: string
+          example: jr_001
+        eventId:
+          type: string
+          example: ev_001
+        status:
+          type: string
+          enum: [judged]
+        objectiveSummary:
+          type: string
+          example: ...
+        analysis:
+          $ref: '#/components/schemas/JudgeAnalysis'
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-02-12T09:00:00Z'
+
+    JudgeResultResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/JudgeResultData'
+
+    FollowupMessageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: 以后类似问题我们怎么避免？
+
+    ContextMeta:
+      type: object
+      required: [recentMessages, snapshots, judgeResults]
+      properties:
+        recentMessages:
+          type: integer
+          example: 8
+        snapshots:
+          type: integer
+          example: 2
+        judgeResults:
+          type: integer
+          example: 1
+
+    FollowupMessageData:
+      type: object
+      required: [reply, contextMeta]
+      properties:
+        reply:
+          type: string
+          example: 结合你们确认的事实，我建议...
+        contextMeta:
+          $ref: '#/components/schemas/ContextMeta'
+
+    FollowupMessageResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/FollowupMessageData'
+
+    CalendarDayCount:
+      type: object
+      required: [date, count]
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-02-03'
+        count:
+          type: integer
+          example: 1
+
+    CalendarMonthData:
+      type: object
+      required: [month, days]
+      properties:
+        month:
+          type: string
+          example: '2026-02'
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarDayCount'
+
+    CalendarMonthResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/CalendarMonthData'
+
+    CalendarDayReviewItem:
+      type: object
+      required: [reviewId, eventId, title, updatedAt]
+      properties:
+        reviewId:
+          type: string
+          example: rv_001
+        eventId:
+          type: string
+          example: ev_001
+        title:
+          type: string
+          example: 2月争吵
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-02-09T15:20:00Z'
+
+    CalendarDayReviewsData:
+      type: object
+      required: [date, items]
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-02-09'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarDayReviewItem'
+
+    CalendarDayReviewsResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/CalendarDayReviewsData'
+
+    ReviewDetailData:
+      type: object
+      required: [reviewId, eventId, content, source, createdAt, updatedAt]
+      properties:
+        reviewId:
+          type: string
+          example: rv_001
+        eventId:
+          type: string
+          example: ev_001
+        content:
+          type: string
+          example: ...
+        source:
+          type: string
+          example: judge_result
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-02-09T15:00:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-02-09T15:20:00Z'
+
+    ReviewDetailResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ReviewDetailData'
+
+    UpdateReviewRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          example: 复盘后更新：以后先冷静10分钟再沟通。
+
+    UpdateReviewData:
+      type: object
+      required: [reviewId, updatedAt, updatedBy]
+      properties:
+        reviewId:
+          type: string
+          example: rv_001
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-02-12T10:00:00Z'
+        updatedBy:
+          type: string
+          example: u_1001
+
+    UpdateReviewResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UpdateReviewData'
+
+    ElfRelayRequest:
+      type: object
+      required: [eventId, targetUserId, rawMessage]
+      properties:
+        eventId:
+          type: string
+          example: ev_001
+        targetUserId:
+          type: string
+          example: u_1002
+        rawMessage:
+          type: string
+          example: 帮我告诉他我不想吵架
+
+    ElfRelayData:
+      type: object
+      required: [messageId, delivered, finalMessage]
+      properties:
+        messageId:
+          type: string
+          example: msg_001
+        delivered:
+          type: boolean
+          example: true
+        finalMessage:
+          type: string
+          example: 你的 Ta 想和你和好，不要再吵啦。
+
+    ElfRelayResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ElfRelayData'
+
+    ElfModerateRequest:
+      type: object
+      required: [rawMessage]
+      properties:
+        rawMessage:
+          type: string
+          example: 你总是这样，别说话了
+
+    ElfModerateData:
+      type: object
+      required: [blocked, riskLevel, suggestedMessage]
+      properties:
+        blocked:
+          type: boolean
+          example: false
+        riskLevel:
+          type: string
+          enum: [low, medium, high]
+          example: medium
+        suggestedMessage:
+          type: string
+          example: 我现在情绪有点上来，想先冷静一下再沟通。
+
+    ElfModerateResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ElfModerateData'

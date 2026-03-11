@@ -818,15 +818,15 @@ npx openapi-typescript-codegen \
    → phase → idle
 ```
 
-### 10.3 B 方参与流程（V1.5+ 影子模式预留）
+### 10.3 B 方参与流程（邀请链接 + 登录参与）
 
 ```
-B 收到分享链接 → 打开 /case/{uuid}/preview
-  → 后端签发 Shadow Token（Set-Cookie）
-  → 展示 A 方快照
+B 收到分享链接 → 打开 /events/{id}/invite
+  → 展示邀请说明与登录/注册入口
+  → 完成登录后拉取 A 方快照
 
-B 选择"同意" → POST /events/{id}/b-agree → 生成裁判结果
-B 选择"不同意" → 进入 B 方私有分析流程 → POST /events/{id}/commit-b
+B 选择"同意" → POST /events/{id}/b-agree（携带 JWT）→ 生成裁判结果
+B 选择"不同意" → 进入 B 方私有分析流程 → POST /events/{id}/commit-b（携带 JWT）
 ```
 
 ---

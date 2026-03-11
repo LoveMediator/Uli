@@ -30,10 +30,12 @@
 ### 2.2 时间与 ID 规范
 - 时间字段统一为 ISO8601（UTC），如 `2026-02-12T08:30:00Z`。
 - 业务对象 ID 用字符串返回（内部可为 bigint/uuid）。
+- 路径中的 `eventId`、`reviewId`、`relationshipId`、`userId` 均表示对外公开 ID（`public_id`），不是数据库自增主键。
 
 ### 2.3 鉴权规范
 - 需要登录的接口必须携带 `Authorization` 头。
 - `access_token` 过期后通过 refresh 接口换新。
+- 分享链接仅用于打开邀请页或跳转注册/登录，不直接授予业务接口访问权限。
 
 ### 2.4 通用错误码
 - `1001` 参数校验失败
@@ -52,7 +54,7 @@
 
 ### 3.1 EventStatus
 - `draft`
-- `waiting_B`
+- `waiting_b`
 - `judged`
 - `reviewed`
 - `closed`
@@ -212,7 +214,7 @@
 ### 5.3 A 确认并冻结 Snapshot_A（MED-FR-002）
 - 方法与路径：`POST /api/v1/events/{eventId}/commit-a`
 - 鉴权：是（仅 A 可执行）
-- 说明：触发 commit/freeze，`status: draft -> waiting_B`。
+- 说明：触发 commit/freeze，`status: draft -> waiting_b`。
 - 请求体：
 ```json
 {
@@ -226,16 +228,17 @@
   "message": "ok",
   "data": {
     "eventId": "ev_001",
-    "status": "waiting_B",
+    "status": "waiting_b",
     "snapshotAId": "sa_001"
   }
 }
 ```
 - 业务错误：`1003` `2002` `3002` `5000`
 
-### 5.4 获取 B 预览的 Snapshot_A（MED-FR-003）
-- 方法与路径：`GET /api/v1/events/{eventId}/snapshot-a`
-- 鉴权：是（仅 B 或 A）
+### 5.4 获取邀请页信息（MED-FR-003）
+- 方法与路径：`GET /api/v1/events/{eventId}/invite`
+- 鉴权：否
+- 说明：通过分享链接进入时使用。仅返回邀请页展示所需的最小信息，不返回 Snapshot_A 正文，不绕过登录。
 - 成功响应：
 ```json
 {
@@ -243,7 +246,27 @@
   "message": "ok",
   "data": {
     "eventId": "ev_001",
-    "status": "waiting_B",
+    "status": "waiting_b",
+    "title": "2月争吵",
+    "inviteMessage": "对方邀请你参与本次事件，请先登录后继续。",
+    "requiresAuth": true
+  }
+}
+```
+- 业务错误：`1002` `1003` `5000`
+
+### 5.5 获取 B 预览的 Snapshot_A（MED-FR-003）
+- 方法与路径：`GET /api/v1/events/{eventId}/snapshot-a`
+- 鉴权：是（仅 A 或已登录的 B）
+- 说明：B 必须先通过分享链接完成注册或登录，再访问该接口。
+- 成功响应：
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "eventId": "ev_001",
+    "status": "waiting_b",
     "snapshotA": {
       "summary": "...",
       "pointsA": ["..."],
@@ -254,10 +277,10 @@
 ```
 - 业务错误：`1002` `2002` `5000`
 
-### 5.5 B 同意并触发裁判（MED-FR-003, MED-FR-004）
+### 5.6 B 同意并触发裁判（MED-FR-003, MED-FR-004）
 - 方法与路径：`POST /api/v1/events/{eventId}/b-agree`
-- 鉴权：是（仅 B）
-- 说明：内部执行 `judge(snapshot_A, inferred_snapshot_B)`。
+- 鉴权：是（仅已登录的 B）
+- 说明：B 必须先登录；内部执行 `judge(snapshot_A, inferred_snapshot_B)`。
 - 请求体：
 ```json
 {
@@ -278,9 +301,10 @@
 ```
 - 业务错误：`1003` `2002` `3003` `5000`
 
-### 5.6 B 提交 Snapshot_B 并触发裁判（MED-FR-003, MED-FR-004）
+### 5.7 B 提交 Snapshot_B 并触发裁判（MED-FR-003, MED-FR-004）
 - 方法与路径：`POST /api/v1/events/{eventId}/commit-b`
-- 鉴权：是（仅 B）
+- 鉴权：是（仅已登录的 B）
+- 说明：B 必须先登录，再提交自己的 Snapshot_B。
 - 请求体：
 ```json
 {
@@ -304,7 +328,7 @@
 ```
 - 业务错误：`1001` `1003` `2002` `5000`
 
-### 5.7 获取裁判结果（MED-FR-005）
+### 5.8 获取裁判结果（MED-FR-005）
 - 方法与路径：`GET /api/v1/events/{eventId}/judge-result`
 - 鉴权：是（仅关系双方）
 - 说明：只读落库结果，不触发实时 LLM。
@@ -330,7 +354,7 @@
 ```
 - 业务错误：`1002` `2002` `3003` `5000`
 
-### 5.8 复盘聊天（MED-FR-006）
+### 5.9 复盘聊天（MED-FR-006）
 - 方法与路径：`POST /api/v1/events/{eventId}/followup-chat/messages`
 - 鉴权：是
 - 说明：服务端执行 `build_context(user_id, event_id)` 拼接上下文后调用 LLM。
@@ -501,7 +525,7 @@
 - AUTH-FR-004 -> `POST /api/v1/auth/logout`, `POST /api/v1/auth/refresh`
 - MED-FR-001 -> `POST /api/v1/events/{eventId}/private-chat/messages`
 - MED-FR-002 -> `POST /api/v1/events/{eventId}/commit-a`
-- MED-FR-003 -> `POST /api/v1/events/{eventId}/b-agree`, `POST /api/v1/events/{eventId}/commit-b`
+- MED-FR-003 -> `GET /api/v1/events/{eventId}/invite`, `GET /api/v1/events/{eventId}/snapshot-a`, `POST /api/v1/events/{eventId}/b-agree`, `POST /api/v1/events/{eventId}/commit-b`
 - MED-FR-004 -> 裁判生成由 `b-agree/commit-b` 内部触发
 - MED-FR-005 -> `GET /api/v1/events/{eventId}/judge-result`
 - MED-FR-006 -> `POST /api/v1/events/{eventId}/followup-chat/messages`
@@ -515,4 +539,5 @@
 - `GET /api/v1/events/{eventId}/judge-result` 严禁实时触发 LLM。
 - `commit-a` 后 Snapshot_A 不可更新。
 - 所有事件读写必须校验 relationship 可见范围。
+- 分享链接只允许打开邀请页，不允许绕过登录直接访问业务接口。
 - followup chat 必须走 `build_context(user_id, event_id)`。

@@ -44,3 +44,8 @@ curl http://localhost:8000/health
 cd backend
 celery -A app.workers.celery_app worker -l info
 ```
+
+## Docs
+
+- Model notes: `backend/docs/models.md`
+- Team task assignment: `backend/docs/task_assignment.md`

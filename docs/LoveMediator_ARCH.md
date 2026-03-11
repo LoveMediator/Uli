@@ -40,7 +40,7 @@
 ### 3.1 产品定位与核心痛点
 
 - **定位**：本系统不是「虚拟恋人」，而是**「介入真实情侣关系的 AI 仲裁与治理工具」**。
-- **核心痛点**：从「解决当下争吵」的高痛点场景切入，通过情感日历与影子模式形成留存与裂变。
+- **核心痛点**：从「解决当下争吵」的高痛点场景切入，通过情感日历与邀请协作形成留存与裂变。
 
 ### 3.2 商业逻辑（增长模型）
 
@@ -48,7 +48,7 @@
 |------|------|
 | **入口 (Hook)** | 通过「解决当下争吵」的高痛点场景切入。 |
 | **留存 (Retention)** | 通过「情感日历」将冲突转化为可视化的关系资产，建立长期依赖。 |
-| **裂变 (Growth)** | 利用「影子模式」打破单边使用的冷启动僵局，实现低成本拉新。 |
+| **裂变 (Growth)** | 利用「分享链接 + 注册登录参与」降低协作门槛，实现低成本拉新。 |
 
 ### 3.3 核心设计哲学：罗生门架构 (Rashomon Architecture)
 
@@ -66,9 +66,9 @@
 
 ### 4.1 功能范围（当前版本）
 
-- Event 全生命周期：草稿 → A 提交 → B 介入（含影子模式）→ 双边提交 → AI 裁判 → 复盘入日历。
+- Event 全生命周期：草稿 → A 提交 → B 通过分享链接进入并注册/登录 → 双边提交 → AI 裁判 → 复盘入日历。
 - 情感日历：时间轴、冲突洞察（含 pgvector 聚类）、结案后「甜蜜后续」。
-- 双 Token 鉴权：注册用户 JWT + 影子用户 Signed Cookie。
+- 鉴权方式：注册用户统一使用 JWT。
 - 预留扩展：小精灵传话、甜蜜日常记忆（接口 501 预留）。
 
 ### 4.2 非功能需求
@@ -79,7 +79,7 @@
 
 ### 4.3 边界与假设
 
-- B 方可通过影子模式「只读 + 轻量回应」参与，无需注册；注册后 Shadow 数据归属转移。
+- B 方通过分享链接进入后，需先注册或登录，再查看 Snapshot_A 并继续后续参与流程。
 - 判决与洞察依赖 LLM 结构化输出（Instructor + Pydantic），需保证 100% JSON 可解析。
 - 原始证据图片上传至 S3 后 7 天自动删除，业务侧不长期保留原始文件。
 
@@ -92,7 +92,7 @@
 
 **为何 MVP 选 Web 对商业验证更优**
 
-- **影子模式与裂变**：B 通过「分享链接」参与，**零安装、零注册**即可打开。Web 链接即开即用，无需应用商店审核与下载摩擦，转化路径最短，最适合验证「A 拉 B」的裂变假设。
+- **邀请协作与裂变**：B 通过「分享链接」进入邀请页，完成注册/登录后参与。Web 链接即开即用，无需应用商店审核与下载摩擦，仍然适合验证「A 拉 B」的裂变假设。
 - **迭代与实验**：前后端分离 + 单域名发布，功能与 A/B 可快速上线，无需发版审核，适合 MVP 快速试错与数据驱动调整。
 - **成本与复用**：一套前端技术栈（React + Vite + PWA）覆盖桌面与移动端；后续若验证通过，再按需追加小程序或 Native 作为增量渠道，数据与 API 可复用。
 
@@ -116,7 +116,7 @@
 |------------|----------|------|
 | **操作审计** | 纯增量 | 新增审计表 + 中间件/切面写日志；不修改现有表与 API，**无缝**。 |
 | **RBAC / 组织角色** | 纯增量 | 新增角色表、权限检查点（如 `deps.py`）；现有 UserRole 保留为「参与角色」，与组织级角色并存，**无缝**。 |
-| **SSO / 第三方登录** | 纯增量 | 在现有 JWT 发放前增加 OAuth/OIDC 校验与用户映射；双 Token 体系不变，**无缝**。 |
+| **SSO / 第三方登录** | 纯增量 | 在现有 JWT 发放前增加 OAuth/OIDC 校验与用户映射；JWT 体系不变，**无缝**。 |
 | **合规与 SLA** | 文档与运维 | 隐私政策、等保、SLA 指标、灾备与回滚多为流程与配置，不强制改核心表结构，**低侵入**。 |
 | **多租户（SaaS 化）** | 需有规划加列与查询改造 | 需在业务表（events、users、judge_results 等）增加 `tenant_id`，所有查询加租户过滤，唯一约束改为 (tenant_id, public_id) 等；**可一次迁移完成**，但需预留设计。 |
 
@@ -125,7 +125,7 @@
 - **方案 A（推荐）**：MVP 阶段在 **users**（及可选 events）表增加可空字段 `tenant_id`，默认值 `1` 表示单租户；所有按「当前用户」的查询已通过 relationship 的 `user_a_id`/`user_b_id` 与 events 的 `initiator_user_id` 等间接归属，后续只需在 Session/Token 中注入 `tenant_id`，并在 CRUD 与索引中统一加上 `tenant_id` 条件与复合唯一约束。一次 Alembic 迁移 + 查询作用域统一即可，**无需改 API 契约或罗生门逻辑**。
 - **方案 B**：不做预留，待企业级时再加 `tenant_id` 并全量数据 backfill；同样可行，但需集中改造所有查询与索引，工作量略大，仍不涉及推翻架构。
 
-**总结**：现有设计（状态机、双 Token、罗生门、API 版本化、Pydantic 契约）本身不阻碍企业级扩展；只要在**首次规划多租户时**统一加列与查询作用域，即可与审计、RBAC、SSO 等增量能力一起，**有序过渡到完整企业级**，无需推倒重来。
+**总结**：现有设计（状态机、JWT 鉴权、罗生门、API 版本化、Pydantic 契约）本身不阻碍企业级扩展；只要在**首次规划多租户时**统一加列与查询作用域，即可与审计、RBAC、SSO 等增量能力一起，**有序过渡到完整企业级**，无需推倒重来。
 
 ---
 
@@ -139,7 +139,7 @@
 
 | 层级 | 名称 | 职责与要点 |
 |------|------|------------|
-| **客户端接入层 (Client Access)** | React SPA (Vite) + 分享与拉新 | Mobile-first SPA，React Router 路由、Zustand 状态管理、TanStack Query 服务端缓存、Tailwind CSS 样式。影子模式：B 通过携带 `shadow_token` 的链接查看 A 的控诉并轻量回应，无需注册/下载 App。微信分享 OG 信息由后端 API 或独立预渲染服务提供。详见 `FE_LoveMediator_v1.md`。 |
+| **客户端接入层 (Client Access)** | React SPA (Vite) + 分享与拉新 | Mobile-first SPA，React Router 路由、Zustand 状态管理、TanStack Query 服务端缓存、Tailwind CSS 样式。B 通过分享链接进入邀请页，完成注册/登录后查看 A 的控诉并继续回应。微信分享 OG 信息由后端 API 或独立预渲染服务提供。详见 `FE_LoveMediator_v1.md`。 |
 | **API 网关与编排层 (Orchestration)** | FastAPI | 鉴权、限流、状态机流转。Privacy Middleware：出站拦截器，响应返回前正则扫描并掩码 PII（手机号、真名），确保合规。 |
 | **智能服务层 (Intelligence Service)** | Prompt + LLM | Prompt Engine：基于 Jinja2 的模板管理，Prompt 与代码解耦。Structured Output：Instructor 或 Pydantic 校验 LLM 输出，确保 100% JSON 格式安全。 |
 | **数据持久层 (Persistence)** | PostgreSQL (Supabase) + pgvector | 业务数据存储；pgvector 存历史判决 Embedding，用于情感日历的冲突聚类（如「本月第 3 次因家务争吵」）。 |
@@ -208,7 +208,7 @@
 
 **moderation_risk_level**：`low` | `medium` | `high`  
 
-（角色概念：发起方 A / 参与方 B 由 **events.initiator_user_id** 与 **relationships.user_a_id / user_b_id** 体现；影子模式见 8.1/8.4。）
+（角色概念：发起方 A / 参与方 B 由 **events.initiator_user_id** 与 **relationships.user_a_id / user_b_id** 体现；邀请链路与登录约束见 8.1/8.4。）
 
 ### 6.3 核心表结构摘要（详见 DB 文档）
 
@@ -427,18 +427,17 @@
 
 | 维度 | 原文档漏洞 | 本节/第九节补全 |
 |------|------------|-----------------|
-| **影子模式 IDOR/爆破** | 未明确 public_id 遍历风险；Signed Cookie 未约定签名算法与密钥管理；无按 IP 的 Rate Limiting。 | 8.4：Shadow Token 绑定 event public_id、HS256、SECRET 管理；网关层限流（每 IP 请求频率与「不同 Event 数」熔断）。 |
+| **分享链接 IDOR/爆破** | 未明确 public_id 遍历风险；未约定邀请链接访问边界；无按 IP 的 Rate Limiting。 | 8.4：基于 public_id 的访问校验、登录后参与约束、网关层限流（每 IP 请求频率与「不同 Event 数」熔断）。 |
 | **成本与资源滥用** | 未约定上传频率、图片压缩策略、Token 熔断报警阈值。 | 8.5：上传频率（如 10 张/天）、前后端压缩策略、Token 熔断阈值与告警；Part 9 表列 .env 配置。 |
 | **可观测性** | 未约定结构化日志与 trace_id，故障难以串联 Next.js → API → Celery。 | 9.4：结构化日志规范、trace_id 全链路传递与落库。 |
 
-### 8.1 双 Token 鉴权体系 (Dual-Token Auth)
+### 8.1 JWT 鉴权体系 (JWT Auth)
 
 | Token 类型 | 形式 | 发放时机 | 权限 | 有效期 |
 |------------|------|----------|------|--------|
-| **Standard Token** | JWT | 登录/注册后 | 完整业务权限 | 7 天 |
-| **Shadow Token** | Signed Cookie | B 点击分享链接时自动种下 | ReadOnly，**仅限 Cookie 内绑定的该 Event 的 `public_id`** | 24 小时 |
+| **Access Token** | JWT | 登录/注册后 | 完整业务权限 | 7 天 |
 
-- **转化**：B 注册后，Shadow 数据的 Ownership 自动转移给新 User ID。
+- **访问约束**：分享链接仅用于将 B 引导到指定 Event 的邀请页；B 必须完成注册或登录后，才可访问 `snapshot-a`、`b-agree`、`commit-b`、`judge-result` 等受保护接口。
 
 ### 8.2 隐私与内容风控
 
@@ -454,14 +453,14 @@
 - **Cache**：相同 OCR 图片哈希直接读 Redis 缓存，不重复调用 OCR API。  
 - **Token 熔断报警**：当单用户/单 IP 在滑动窗口（如 1 小时）内累计 Token 消耗超过阈值（如 50k），或单日 OCR 调用次数超过阈值时，触发**告警**（邮件/钉钉），并可选对该用户/IP 进行临时限流或降级。阈值由环境变量配置（见 9.5 .env 示例）。  
 
-### 8.4 影子模式越权与爆破防护 (IDOR & Brute-force)
+### 8.4 分享链接越权与爆破防护 (IDOR & Brute-force)
 
 **风险**：攻击者通过枚举/遍历 public_id 访问他人 Event（IDOR）；或单 IP 高频请求大量不同 Event（爆破/爬取）。
 
 | 措施 | 约定 |
 |------|------|
-| **Shadow Token 绑定** | Cookie 内**必须包含当前 Event 的 `public_id`**（及过期时间）。服务端校验：仅当请求的 eventId 与 Cookie 中签名的 public_id 一致时才允许访问；禁止「持任意 Shadow Cookie 访问任意 Event」。 |
-| **签名算法与密钥** | Shadow Token 使用 **HMAC-SHA256（HS256）** 对 `public_id + expiry` 签名；密钥由 **9.5 .env** 提供（SECRET_KEY 或 SHADOW_COOKIE_SECRET，与 JWT 隔离），仅服务端持有，不得写入前端。密钥轮换时需兼容旧 Cookie 的短暂重叠期。 |
+| **邀请链接访问边界** | 分享链接中仅暴露当前 Event 的 `public_id` 或等价不可预测标识；服务端仅允许未登录用户访问邀请页、注册页、登录页，不允许直接访问 `snapshot-a`、`b-agree`、`commit-b`、`judge-result` 等业务接口。 |
+| **登录后再校验归属** | B 完成注册/登录后，服务端基于 `public_id` 定位 Event，并校验当前用户是否是该 relationship 的 B 方或被允许介入的受邀方；禁止“拿到链接即可直接参与任意 Event”。 |
 | **Rate Limiting（网关层）** | 在 API 网关/Middleware 层对**按 IP** 的请求做限流：**(1)** 通用：如每 IP 每分钟最多 120 次请求（可配置）；**(2)** 防爆破：同一 IP 在**短时间窗口（如 1 分钟）内访问的「不同 Event 的 public_id」数量**上限（如 20）；超过则返回 429，并可选加入临时封禁名单。限流计数使用 Redis，键含 IP 与时间窗口。 |
 | **public_id 不可预测** | Event 的 `public_id` 必须为**加密学随机**（如 ULID/雪花ID 或 128bit 随机数编码），禁止自增或可推测序列，降低枚举可行性。 |
 
@@ -500,10 +499,10 @@
 │   │   │   ├── /v2                   # [Future] 预留
 │   │   │   │   ├── /elf              # 小精灵传话 (501)
 │   │   │   │   └── /memories         # 甜蜜日常 (501)
-│   │   │   └── deps.py               # [Auth] 依赖注入（双 Token、DB、Redis）
+│   │   │   └── deps.py               # [Auth] 依赖注入（JWT、DB、Redis）
 │   │   ├── /core                     # [Infra]
 │   │   │   ├── config.py             # Pydantic Settings（含 .env 安全与限流项，见 9.5）
-│   │   │   ├── security.py           # JWT & Signed Cookie（HS256，Shadow 绑定 event public_id）
+│   │   │   ├── security.py           # JWT 鉴权与密码安全
 │   │   │   ├── middleware.py         # PII 脱敏、CORS、Rate Limiting（见 8.4）
 │   │   │   └── exceptions.py         # CostOverrun, UnsafeContent 等
 │   │   ├── /crud                     # [DB] 原子 CRUD
@@ -519,7 +518,7 @@
 │   │   │   └── response.py
 │   │   ├── /prompts                  # [AI] Jinja2 模板
 │   │   │   ├── god_view.jinja2
-│   │   │   ├── shadow_judge.jinja2
+│   │   │   ├── invite_judge.jinja2
 │   │   │   └── insight.jinja2
 │   │   ├── /services                 # [Logic] 复杂业务
 │   │   │   ├── llm_agent.py          # Instructor + Tenacity
@@ -649,8 +648,8 @@ volumes:
 
 | 预置内容 | 说明 |
 |----------|------|
-| **测试用户** | 至少 2 个：**User A**（initiator）、**User B**（invitee），用于模拟 A 创建 Event、B 通过链接或 relationship 介入。无需预置「Shadow 用户」——影子模式即 B 未注册时由分享链接访问，服务端下发 Shadow Cookie（绑定 event public_id）。 |
-| **预置 Event 状态** | **(1)** 1 个 `draft`：供 A 继续编辑并执行 commit-a；**(2)** 1 个 `waiting_b`：含固定 `public_id`（如 `seed-waiting-b-001`），可选写入 `expire_at`（如 24h 后），供 B 打开链接体验 snapshot-a / b-agree 或 commit-b（Shadow 或登录为 User B）。可选：1 个 `judged`、1 个 `reviewed` 或 `closed`，便于测试日历与复盘。 |
+| **测试用户** | 至少 2 个：**User A**（initiator）、**User B**（invitee），用于模拟 A 创建 Event、B 通过分享链接进入邀请页并在注册/登录后介入。 |
+| **预置 Event 状态** | **(1)** 1 个 `draft`：供 A 继续编辑并执行 commit-a；**(2)** 1 个 `waiting_b`：含固定 `public_id`（如 `seed-waiting-b-001`），可选写入 `expire_at`（如 24h 后），供 B 打开链接、完成登录后体验 `snapshot-a` / `b-agree` / `commit-b`。可选：1 个 `judged`、1 个 `reviewed` 或 `closed`，便于测试日历与复盘。 |
 | **预置 judge_results / 复盘** | judge_results 表与 events 1:1，无独立 Tags 表；若需**日历或洞察**有数据，可 seed 1～2 条 **judge_results**（关联到上述已 judged 的 Event），objective_summary、triggers、advice_for_a/b 等填示例内容。若产品有「标签候选」，可在代码中维护常量与 judge_results 的 triggers 等一致。 |
 
 **执行顺序建议**：`alembic upgrade head` → `seed_db.py`（先 users/relationships，再 events，再 event_snapshots、judge_results、reviews 等）。`start.sh` 或 README 中注明：首次本地启动需执行 `python scripts/seed_db.py` 或 `make seed`。
@@ -675,7 +674,6 @@ volumes:
 | **DATABASE_URL** | PostgreSQL 连接串（含 pgvector） | `postgresql://user:pass@localhost:5432/lovemediator` |
 | **REDIS_URL** | Redis 连接串（限流、缓存、会话） | `redis://localhost:6379/0` |
 | **SECRET_KEY** | JWT 签名与 Session 通用密钥 | 至少 32 字节随机字符串 |
-| **SHADOW_COOKIE_SECRET** | Shadow Token Cookie 的 HMAC 密钥（可与 SECRET_KEY 隔离） | 至少 32 字节随机字符串 |
 | **OPENAI_API_KEY**（或所用 LLM 提供商 Key） | 判决/摘要等 LLM 调用 | 占位，部署时填入 |
 | **OCR_API_KEY**（或所用 OCR 提供商 Key） | 图片文字识别 | 占位，部署时填入 |
 | **RATE_LIMIT_REQUESTS_PER_MINUTE** | 每 IP 每分钟最大请求数 | 120 |
@@ -711,12 +709,12 @@ volumes:
 | Event | 单次「争吵/冲突」仲裁单元（events 表），含 A/B 双视角与一次裁判；状态 draft → waiting_b → judged → reviewed → closed。 |
 | event_snapshots | A/B 冻结事实快照（summary、points_a、points_b），每事件每侧一份，冻结后不可改。 |
 | JudgeResult / judge_results | AI 裁判结果（只读落库），含 objective_summary、triggers、misunderstandings、advice_for_a/b 等；与 Event 1:1。 |
-| 影子模式 (Shadow Mode) | B 通过链接以未注册身份参与，使用 Shadow Token（绑定 event public_id）。 |
+| 邀请参与流程 (Invite Flow) | B 通过分享链接进入邀请页，注册或登录后以 JWT 身份参与指定 Event。 |
 | 罗生门架构 | 双视角独立输入 + 认知偏差识别 + 状态机驱动，不强求输入阶段共识。 |
 
 ### 10.4 核心流程图示 (Mermaid)
 
-以下两图用于验证 Part 7 核心流程的逻辑闭环：状态无孤岛、终态可达；影子模式中 Token 签发与转正权属清晰。
+以下两图用于验证 Part 7 核心流程的逻辑闭环：状态无孤岛、终态可达；邀请链路中“先登录后参与”的访问边界清晰。
 
 #### 10.4.1 全生命周期状态机图 (State Diagram)
 
@@ -740,14 +738,14 @@ stateDiagram-v2
     closed --> [*]
 ```
 
-#### 10.4.2 影子模式时序图 (Sequence Diagram)
+#### 10.4.2 邀请参与时序图 (Sequence Diagram)
 
-- **Shadow Token 签发环节**：B 首次通过分享链接访问 **GET /events/{eventId}/snapshot-a**（或等价预览接口）且服务端校验通过（event 有效、status=waiting_b）后，在**该次响应**中通过 **Set-Cookie** 签发 Shadow Token（Signed Cookie，绑定当前 event public_id + expiry）。后续 B 在同一浏览器内访问同 Event 的 b-agree/commit-b/judge-result 等均携带此 Cookie，Middleware 校验 Cookie 内 public_id 与请求 path 的 eventId 一致即放行。
-- **转正时数据权属转移**：B 完成注册/登录后，后端将「该 Shadow 会话曾参与的 Event」与新 User ID 关联（如通过 relationship 补全 B 方、或参与记录表）；此后该 Event 归属为已注册的 B，B 用 Standard Token（JWT）即可访问。
+- **邀请进入环节**：B 首次通过分享链接打开邀请页，前端携带 `eventId/public_id` 跳转到注册或登录流程；服务端允许其查看邀请说明，但不允许直接访问受保护业务接口。
+- **登录后参与**：B 完成注册/登录并取得 JWT 后，访问 **GET /events/{eventId}/snapshot-a**、`POST /events/{eventId}/b-agree`、`POST /events/{eventId}/commit-b` 等接口；服务端在校验 JWT 的基础上，再校验该用户对当前 Event 的参与权限。
 
 ```mermaid
 sequenceDiagram
-    participant B as User B (未注册)
+    participant B as User B
     participant Browser
     participant Gateway as API Gateway / Middleware
     participant API as FastAPI
@@ -755,35 +753,31 @@ sequenceDiagram
     participant Auth as 用户/注册服务
 
     Note over B,Auth: B 点击分享链接
-    B->>Browser: 打开 /events/{eventId} 预览
-    Browser->>Gateway: GET /api/v1/events/{eventId}/snapshot-a (无 Cookie)
-    Gateway->>API: 转发 (无 JWT / 无 Shadow)
+    B->>Browser: 打开 /events/{eventId}/invite
+    Browser->>Gateway: GET /api/v1/events/{eventId}/invite
+    Gateway->>API: 转发 (无 JWT)
     API->>DB: 校验 event public_id、status=waiting_b
-    DB-->>API: Event 信息
-    API->>API: 校验通过，生成 Shadow Token (public_id+expiry, HS256 签名)
-    API-->>Gateway: 200 + Set-Cookie(Shadow Token) + Snapshot_A 数据
-    Gateway-->>Browser: 响应 + Set-Cookie
-    Note over Browser: 浏览器保存 Shadow Token（仅限该 event）
+    DB-->>API: Event 邀请信息
+    API-->>Gateway: 200 + invite metadata
+    Gateway-->>Browser: 响应邀请页数据
 
-    B->>Browser: 查看 A 的控诉后，提交回应
-    Browser->>Gateway: POST /api/v1/events/{eventId}/b-agree 或 commit-b (带 Shadow Cookie)
-    Gateway->>Gateway: 鉴权：Cookie 中 public_id 与 path 的 eventId 一致
-    Gateway->>API: 转发
-    API->>DB: 写入 judge_results / 更新 status=judged
-    DB-->>API: OK
-    API-->>Browser: 200
-
-    Note over B,Auth: B 决定注册（转正）
-    B->>Browser: 发起注册
-    Browser->>Auth: POST 注册
+    Note over B,Auth: B 必须先注册或登录
+    B->>Browser: 发起注册/登录
+    Browser->>Auth: POST 注册或登录
     Auth->>DB: 创建 User，得到 user_id
     Auth-->>Browser: 201 + JWT (Standard Token)
-    Browser->>Gateway: 后续请求带 JWT（或一次「转正」调用）
+    Browser->>Gateway: GET /api/v1/events/{eventId}/snapshot-a (带 JWT)
     Gateway->>API: 识别为已注册用户
-    API->>DB: 将曾以 Shadow 参与的 Event 与 relationship/B 方关联
-    Note over DB: 权属转移：B 方用户身份绑定
+    API->>DB: 校验 event public_id、relationship、B 方参与权限
+    DB-->>API: Snapshot_A 数据
+    API-->>Browser: 200 + Snapshot_A
+
+    B->>Browser: 查看 A 的控诉后，提交回应
+    Browser->>Gateway: POST /api/v1/events/{eventId}/b-agree 或 commit-b (带 JWT)
+    Gateway->>API: 转发
+    API->>DB: 校验权限后写入 judge_results / 更新 status=judged
+    DB-->>API: OK
     API-->>Browser: 200
-    Note over Browser: 此后该 Event 由 JWT 访问，Shadow Cookie 可废弃
 ```
 
 ### 10.5 单元经济模型 (Unit Economics) — CTO 审查
