@@ -724,3 +724,29 @@
 3. 3 号先把 review/calendar/elf 的接口骨架写好，再等 judged 数据对接。
 4. 所有人都以 `docs/openapi.yaml` 作为字段和路径唯一准绳。
 
+### 10.1 【注释】3号路由接入前审查清单（联调用）
+
+> 说明：本小节为 3 号实现完成后的“接入前注释清单”，用于降低联调返工；不改变上文分工边界。
+
+- **先检查 1 号底座是否就绪**：
+  - `get_current_user` 可用
+  - 统一响应 envelope（`code/message/data`）可用
+  - 全局异常处理能透传 `AppError.code`
+- **Review 路由接入检查**（`GET/PUT /api/v1/reviews/{reviewId}`）：
+  - 路径参数使用 `public_id`
+  - 读取与编辑均校验关系成员权限
+  - 编辑必须写 `review_versions`
+- **Calendar 路由接入检查**（`GET /calendar`、`GET /calendar/days/{date}/reviews`）：
+  - `month`/`date` 参数格式校验
+  - 关系维度数据隔离
+  - 列表字段与 API 文档一致（`reviewId/eventId/title/updatedAt`）
+- **Elf 路由接入检查**（`POST /elf/relay`、`POST /elf/moderate`）：
+  - `rawMessage` 非空校验
+  - `targetUserId` 必须是当前关系另一方（禁止给自己发）
+  - relay / moderate 均落库审计
+- **Followup 接口协同检查**（`POST /events/{eventId}/followup-chat/messages`）：
+  - 仅 `judged/reviewed/closed` 可调用
+  - 必须走 `build_context(user_id, event_id)`
+  - 必须写 `followup_messages` 与 `ai_call_logs`
+
+
