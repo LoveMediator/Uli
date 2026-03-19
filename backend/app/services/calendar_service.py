@@ -6,28 +6,12 @@
 
 from datetime import date
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.constants.error_codes import FORBIDDEN, NOT_FOUND
-from app.core.errors import AppError
-from app.models.relationship import Relationship
 from app.repos import review_repo
 from app.schemas.calendar import CalendarDayCount, CalendarDayReviewsData, CalendarMonthData
 from app.schemas.review import ReviewListItem
-
-
-def _get_relationship_or_fail(db: Session, relationship_id: int) -> Relationship:
-    stmt = select(Relationship).where(Relationship.id == relationship_id)
-    rel = db.execute(stmt).scalar_one_or_none()
-    if rel is None:
-        raise AppError("关系不存在", code=NOT_FOUND)
-    return rel
-
-
-def _assert_member(rel: Relationship, user_id: int) -> None:
-    if user_id not in (rel.user_a_id, rel.user_b_id):
-        raise AppError("无权访问该日历", code=FORBIDDEN)
+from app.utils.permissions import assert_relationship_member
 
 
 def get_month_summary(
@@ -41,8 +25,7 @@ def get_month_summary(
 
     对应 API §6.1 GET /calendar?month=YYYY-MM。
     """
-    rel = _get_relationship_or_fail(db, relationship_id)
-    _assert_member(rel, user_id)
+    assert_relationship_member(db, relationship_id, user_id)
 
     rows = review_repo.get_month_day_counts(db, relationship_id, year, month)
     days = [
@@ -65,8 +48,7 @@ def get_day_reviews(
 
     对应 API §6.2 GET /calendar/days/{date}/reviews。
     """
-    rel = _get_relationship_or_fail(db, relationship_id)
-    _assert_member(rel, user_id)
+    assert_relationship_member(db, relationship_id, user_id)
 
     rows = review_repo.get_review_items_by_date(db, relationship_id, target_date)
     items = [

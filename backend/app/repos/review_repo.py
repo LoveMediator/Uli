@@ -13,7 +13,6 @@ from app.models.event import Event
 from app.models.review import CalendarEntry, Review, ReviewVersion
 
 
-
 # --- Review ---
 
 def get_review_by_public_id(db: Session, public_id: str) -> Review | None:
@@ -66,7 +65,6 @@ def update_review_content(
     return review
 
 
-
 # --- ReviewVersion ---
 
 def get_latest_version_no(db: Session, review_id: int) -> int:
@@ -97,7 +95,6 @@ def create_review_version(
     db.add(version)
     db.flush()
     return version
-
 
 
 # --- CalendarEntry ---

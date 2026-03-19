@@ -5,6 +5,7 @@
 
 from sqlalchemy.orm import Session
 
+from app.constants.enums import ModerationRiskLevel
 from app.models.elf import ElfMessage, ModerationLog
 
 
@@ -44,8 +45,6 @@ def create_moderation_log(
     suggested_message: str | None = None,
 ) -> ModerationLog:
     """创建一条过激语言检测审计记录。"""
-    from app.constants.enums import ModerationRiskLevel
-
     log = ModerationLog(
         user_id=user_id,
         raw_message=raw_message,

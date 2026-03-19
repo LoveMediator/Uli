@@ -6,25 +6,14 @@
 
 from datetime import date
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.constants.error_codes import FORBIDDEN, INVALID_PARAMS, NOT_FOUND
+from app.constants.error_codes import INVALID_PARAMS, NOT_FOUND
 from app.core.errors import AppError
-from app.models.relationship import Relationship
 from app.models.review import Review
 from app.repos import review_repo
 from app.utils.ids import generate_public_id
-
-
-def _assert_relationship_member(db: Session, relationship_id: int, user_id: int) -> None:
-    """校验 user_id 是否为 relationship 的 A 或 B 方，否则抛出权限错误。"""
-    stmt = select(Relationship).where(Relationship.id == relationship_id)
-    rel = db.execute(stmt).scalar_one_or_none()
-    if rel is None:
-        raise AppError("关系不存在", code=NOT_FOUND)
-    if user_id not in (rel.user_a_id, rel.user_b_id):
-        raise AppError("无权访问该复盘", code=FORBIDDEN)
+from app.utils.permissions import assert_relationship_member
 
 
 def get_review(db: Session, user_id: int, review_public_id: str) -> Review:
@@ -35,7 +24,7 @@ def get_review(db: Session, user_id: int, review_public_id: str) -> Review:
     review = review_repo.get_review_by_public_id(db, review_public_id)
     if review is None:
         raise AppError("复盘不存在", code=NOT_FOUND)
-    _assert_relationship_member(db, review.relationship_id, user_id)
+    assert_relationship_member(db, review.relationship_id, user_id)
     return review
 
 
@@ -53,7 +42,7 @@ def update_review(
     review = review_repo.get_review_by_public_id(db, review_public_id)
     if review is None:
         raise AppError("复盘不存在", code=NOT_FOUND)
-    _assert_relationship_member(db, review.relationship_id, user_id)
+    assert_relationship_member(db, review.relationship_id, user_id)
     if not content or not content.strip():
         raise AppError("复盘内容不能为空", code=INVALID_PARAMS)
 

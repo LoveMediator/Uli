@@ -4,28 +4,16 @@
 LLM 调用当前为 mock 实现（标注 MOCK），待 AI 服务集成后替换。
 """
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.constants.enums import EventStatus
-from app.constants.error_codes import FORBIDDEN, INVALID_PARAMS, NOT_FOUND, PREREQ_NOT_MET
+from app.constants.error_codes import INVALID_PARAMS, PREREQ_NOT_MET
 from app.core.errors import AppError
 from app.models.audit import AiCallLog
-from app.models.event import Event
-from app.models.relationship import Relationship
 from app.repos import followup_repo
 from app.schemas.followup import FollowupContextMeta, FollowupResponse
 from app.utils.context_builder import build_context
-
-
-def _assert_event_participant(db: Session, event: Event, user_id: int) -> None:
-    """校验用户是否为该事件关系的参与方。"""
-    stmt = select(Relationship).where(Relationship.id == event.relationship_id)
-    rel = db.execute(stmt).scalar_one_or_none()
-    if rel is None:
-        raise AppError("关系不存在", code=NOT_FOUND)
-    if user_id not in (rel.user_a_id, rel.user_b_id):
-        raise AppError("无权访问该事件的复盘聊天", code=FORBIDDEN)
+from app.utils.permissions import get_event_with_permission
 
 
 def followup_chat(
@@ -39,12 +27,7 @@ def followup_chat(
     对应 API §5.9 POST /events/{eventId}/followup-chat/messages。
     API 实现约束：必须走 build_context，禁止裸调 LLM。
     """
-    stmt = select(Event).where(Event.public_id == event_public_id)
-    event = db.execute(stmt).scalar_one_or_none()
-    if event is None:
-        raise AppError("事件不存在", code=NOT_FOUND)
-
-    _assert_event_participant(db, event, user_id)
+    event, _rel = get_event_with_permission(db, event_public_id, user_id)
 
     # followup 仅允许在裁判完成后进行，避免绕过主链。
     if event.status not in (EventStatus.JUDGED, EventStatus.REVIEWED, EventStatus.CLOSED):

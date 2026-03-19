@@ -8,33 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.constants.error_codes import FORBIDDEN, INVALID_PARAMS, NOT_FOUND
 from app.core.errors import AppError
-from app.models.event import Event
-from app.models.relationship import Relationship
 from app.models.user import User
 from app.repos import elf_repo
 from app.schemas.elf import ElfRelayResponse, ModerateResponse
 from app.utils.ids import generate_public_id
-
-
-def _resolve_event_and_check(
-    db: Session,
-    event_public_id: str,
-    user_id: int,
-) -> Event:
-    """通过 public_id 找到 event 并校验用户属于关系参与方。"""
-    stmt = select(Event).where(Event.public_id == event_public_id)
-    event = db.execute(stmt).scalar_one_or_none()
-    if event is None:
-        raise AppError("事件不存在", code=NOT_FOUND)
-
-    rel_stmt = select(Relationship).where(Relationship.id == event.relationship_id)
-    rel = db.execute(rel_stmt).scalar_one_or_none()
-    if rel is None:
-        raise AppError("关系不存在", code=NOT_FOUND)
-    if user_id not in (rel.user_a_id, rel.user_b_id):
-        raise AppError("无权操作", code=FORBIDDEN)
-
-    return event
+from app.utils.permissions import get_event_with_permission
 
 
 def _resolve_target_user(db: Session, target_public_id: str) -> User:
@@ -57,16 +35,11 @@ def relay_message(
 
     对应 API §7.1 POST /elf/relay。
     """
-    event = _resolve_event_and_check(db, event_public_id, user_id)
+    event, rel = get_event_with_permission(db, event_public_id, user_id)
     target_user = _resolve_target_user(db, target_user_public_id)
 
     if not raw_message or not raw_message.strip():
         raise AppError("消息不能为空", code=INVALID_PARAMS)
-
-    rel_stmt = select(Relationship).where(Relationship.id == event.relationship_id)
-    rel = db.execute(rel_stmt).scalar_one_or_none()
-    if rel is None:
-        raise AppError("关系不存在", code=NOT_FOUND)
     if target_user.id not in (rel.user_a_id, rel.user_b_id):
         raise AppError("目标用户不在当前关系内", code=FORBIDDEN)
     if target_user.id == user_id:
@@ -100,13 +73,12 @@ def moderate_message(
     user_id: int,
     raw_message: str,
 ) -> ModerateResponse:
-    if not raw_message or not raw_message.strip():
-        raise AppError("消息不能为空", code=INVALID_PARAMS)
-
     """过激语言检测与柔化。
 
     对应 API §7.2 POST /elf/moderate。
     """
+    if not raw_message or not raw_message.strip():
+        raise AppError("消息不能为空", code=INVALID_PARAMS)
     # MOCK: LLM 检测 —— 待 ai_service 集成后替换。
     # 真实实现应调用 LLM 或规则引擎对 raw_message 做风险评估。
     risk_level = "low"
