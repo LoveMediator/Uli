@@ -1,4 +1,4 @@
-﻿# Backend Service
+# Backend Service
 
 ## Prerequisites
 - Python 3.11+
@@ -23,6 +23,13 @@ DEBUG=false
 DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/app
 REDIS_URL=redis://localhost:6379/0
 SECRET_KEY=change-me
+
+# JWT
+JWT_ALGORITHM=HS256
+
+# Token 过期时间（分钟/天）
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=30
 ```
 
 ## Run (local)
