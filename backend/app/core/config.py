@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     debug: bool = False
     database_url: str = "postgresql+psycopg://user:pass@localhost:5432/app"
     redis_url: str = "redis://localhost:6379/0"
+    # 逗号分隔的前端源（如 http://localhost:5173）；空字符串表示不启用 CORS 中间件
+    cors_origins: str = ""
+    db_connect_timeout_seconds: int = 15
     secret_key: str = _INSECURE_DEFAULT_KEY
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30

@@ -1,0 +1,33 @@
+# 本地开发：PostgreSQL + Redis（端口与常见本机安装错开，减少冲突）
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lovemediator-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: lovemediator_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - lovemediator_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lovemediator_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: lovemediator-redis
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  lovemediator_pgdata:

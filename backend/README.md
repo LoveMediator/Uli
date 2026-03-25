@@ -2,8 +2,19 @@
 
 ## Prerequisites
 - Python 3.11+
-- PostgreSQL (local or remote)
-- Redis (for Celery tasks)
+- PostgreSQL（本机安装 **或** 下文 Docker Compose）
+- Redis（本机安装 **或** Docker；仅跑 API 可先不配 Celery）
+
+## Docker（推荐：一键 PostgreSQL + Redis）
+
+在 `backend/` 目录：
+
+```bash
+docker compose up -d
+```
+
+默认映射：**PostgreSQL `localhost:5433`**，**Redis `localhost:6380`**（避免与本机 5432/6379 冲突）。  
+等待 `healthy` 后，将 `.env` 中的 `DATABASE_URL` / `REDIS_URL` 与 `.env.example` 中 Docker 示例保持一致，再执行迁移。
 
 ## Setup
 1. Create a virtual environment and install dependencies:
@@ -24,7 +35,9 @@ pip install -e .
 copy .env.example .env
 ```
 
-至少设置 `DATABASE_URL`（示例：`postgresql+psycopg://USER:PASS@localhost:5432/lovemediator_dev`）。PostgreSQL 中只需建空库，表结构由迁移创建。
+至少设置 `DATABASE_URL`；若用 Docker 则直接复制 `.env.example` 即可。  
+联调前端时建议设置 `CORS_ORIGINS`（模板已含 Vite 默认源）。  
+（不用 Docker 时）在本机 PostgreSQL 中建空库 `lovemediator_dev`，表结构由迁移创建。
 
 ## Database migrations
 
@@ -42,10 +55,11 @@ cd backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Health check:
+健康检查：
 
 ```bash
 curl http://localhost:8000/health
+curl http://localhost:8000/health/ready   # 需 PostgreSQL 可连，否则 503
 ```
 
 ## Celery (optional)
