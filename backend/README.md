@@ -5,9 +5,33 @@
 - **本机 PostgreSQL**（默认 `localhost:5432`；用 pgAdmin 建空库 `lovemediator_dev`）
 - Redis（本机 `6379` 或下文 Docker；仅跑 HTTP API 可先不启）
 
+## Windows：尚未安装 PostgreSQL 时（winget 方案 A）
+
+1. 打开 **以管理员身份运行** 的 **PowerShell**（开始菜单 → 右键 Windows PowerShell → 以管理员身份运行）。
+2. 执行（会下载约 350MB，并弹出 **图形安装向导**，必须在向导里点「下一步」并完成；**务必记下 `postgres` 用户的密码**）：
+
+```powershell
+winget install -e --id PostgreSQL.PostgreSQL.17 --accept-package-agreements --accept-source-agreements --disable-interactivity
+```
+
+3. 若任务栏出现 **Setup** / **PostgreSQL** 安装窗口：**不要关**，按向导走完（端口保持默认 **5432** 即可）。完成后一般会自动注册并启动服务。
+4. 验证服务（普通 PowerShell 即可）：
+
+```powershell
+Get-Service *postgres*
+```
+
+若 **Status** 不是 **Running**，以管理员执行（服务名以你电脑上显示的为准，常见为 `postgresql-x64-17`）：
+
+```powershell
+Start-Service postgresql-x64-17
+```
+
+5. 打开 **Stack Builder** 或安装时自带的 **pgAdmin**，连接 `localhost:5432`，新建数据库 **`lovemediator_dev`**。
+
 ## 本机库（推荐默认流程）
 
-1. 启动 PostgreSQL 服务，在 pgAdmin 中 **Create Database** → 名称 **`lovemediator_dev`**（只建库，不手建表）。
+1. 确认 PostgreSQL 服务已 **Running**，在 pgAdmin 中 **Create Database** → 名称 **`lovemediator_dev`**（只建库，不手建表）。
 2. `cd backend`，复制环境变量并改密码：
 
 ```powershell
