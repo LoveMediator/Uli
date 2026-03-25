@@ -15,8 +15,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.judge import JudgeResult
-from app.models.review import FollowupMessage, Review
+from app.models.review import Review
 from app.models.snapshot import EventSnapshot
+from app.repos import followup_repo
 
 
 @dataclass
@@ -58,15 +59,8 @@ def build_context(
     """
     payload = ContextPayload()
 
-    # 1) 近期 followup_messages（短期记忆）
-    stmt_msg = (
-        select(FollowupMessage)
-        .where(FollowupMessage.event_id == event_id)
-        .order_by(FollowupMessage.created_at.desc())
-        .limit(max_recent_messages)
-    )
-    messages = list(db.execute(stmt_msg).scalars().all())
-    messages.reverse()
+    # 1) 近期 followup_messages（短期记忆）— 复用 followup_repo
+    messages = followup_repo.get_recent_messages(db, event_id, limit=max_recent_messages)
     payload.recent_messages = []
     for msg in messages:
         payload.recent_messages.append(

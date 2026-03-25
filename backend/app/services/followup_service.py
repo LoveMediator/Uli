@@ -9,8 +9,7 @@ from sqlalchemy.orm import Session
 from app.constants.enums import EventStatus
 from app.constants.error_codes import INVALID_PARAMS, PREREQ_NOT_MET
 from app.core.errors import AppError
-from app.models.audit import AiCallLog
-from app.repos import followup_repo
+from app.repos import audit_repo, followup_repo
 from app.schemas.followup import FollowupContextMeta, FollowupResponse
 from app.utils.context_builder import build_context
 from app.utils.permissions import get_event_with_permission
@@ -56,18 +55,12 @@ def followup_chat(
         context_meta=ctx.meta,
     )
 
-    # 记录 AI 调用日志（场景：followup）。当前为 mock，token 先记 0。
-    db.add(
-        AiCallLog(
-            event_id=event.id,
-            scene="followup",
-            model_name="mock-followup-v1",
-            input_tokens=0,
-            output_tokens=0,
-            success=True,
-            error_code=None,
-            trace_id=None,
-        )
+    audit_repo.create_ai_call_log(
+        db,
+        event_id=event.id,
+        scene="followup",
+        model_name="mock-followup-v1",
+        success=True,
     )
     db.commit()
 

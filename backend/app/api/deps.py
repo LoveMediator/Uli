@@ -50,5 +50,6 @@ def get_current_active_user(
     return user
 
 
+Db = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentActiveUser = Annotated[User, Depends(get_current_active_user)]

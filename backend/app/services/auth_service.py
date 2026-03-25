@@ -87,6 +87,13 @@ def login_user(
         db.commit()
         raise AuthError("用户名或密码错误")
 
+    if user.status == UserStatus.LOCKED and user.locked_until is not None and user.locked_until <= now:
+        user.status = UserStatus.ACTIVE
+        user.failed_login_count = 0
+        user.locked_until = None
+        db.commit()
+        db.refresh(user)
+
     if user.status != UserStatus.ACTIVE:
         db.add(
             AuthLoginLog(
@@ -174,6 +181,9 @@ def refresh_access_token(db: Session, *, refresh_token: str) -> str:
     user = user_repo.get_user_by_id(db, row.user_id)
     if user is None:
         raise AuthError("用户不存在")
+
+    if user.status != UserStatus.ACTIVE:
+        raise AccountLockedOrDisabledError("账号已锁定或禁用，无法刷新令牌")
 
     return create_access_token(user.id)
 

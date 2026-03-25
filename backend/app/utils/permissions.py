@@ -13,6 +13,15 @@ from app.models.event import Event
 from app.models.relationship import Relationship
 
 
+def get_relationship_by_public_id(db: Session, relationship_public_id: str) -> Relationship:
+    """按 public_id 查询 relationship，不存在则抛 NOT_FOUND。"""
+    stmt = select(Relationship).where(Relationship.public_id == relationship_public_id)
+    rel = db.execute(stmt).scalar_one_or_none()
+    if rel is None:
+        raise AppError("关系不存在", code=NOT_FOUND)
+    return rel
+
+
 def get_relationship_or_fail(db: Session, relationship_id: int) -> Relationship:
     """按内部 ID 查询 relationship，不存在则抛 NOT_FOUND。"""
     stmt = select(Relationship).where(Relationship.id == relationship_id)
