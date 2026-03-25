@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from app.api.deps import CurrentActiveUser, Db
+from app.api.deps import CurrentActiveUser, Db, PublicId
 from app.schemas.common import ApiEnvelope, envelope_success
 from app.schemas.event import (
     BAgreeData,
@@ -47,7 +47,7 @@ def create_event(
 
 @router.post("/{event_id}/commit-a", response_model=ApiEnvelope)
 def commit_a(
-    event_id: str,
+    event_id: PublicId,
     body: CommitARequest,
     user: CurrentActiveUser,
     db: Db,
@@ -68,7 +68,7 @@ def commit_a(
 
 @router.get("/{event_id}/invite", response_model=ApiEnvelope)
 def get_invite(
-    event_id: str,
+    event_id: PublicId,
     db: Db,
 ) -> dict[str, Any]:
     event = event_service.get_invite(db, event_public_id=event_id)
@@ -84,7 +84,7 @@ def get_invite(
 
 @router.get("/{event_id}/snapshot-a", response_model=ApiEnvelope)
 def get_snapshot_a(
-    event_id: str,
+    event_id: PublicId,
     user: CurrentActiveUser,
     db: Db,
 ) -> dict[str, Any]:
@@ -105,7 +105,7 @@ def get_snapshot_a(
 
 @router.post("/{event_id}/b-agree", response_model=ApiEnvelope)
 def b_agree(
-    event_id: str,
+    event_id: PublicId,
     body: BAgreeRequest,
     user: CurrentActiveUser,
     db: Db,
@@ -123,7 +123,7 @@ def b_agree(
 
 @router.post("/{event_id}/commit-b", response_model=ApiEnvelope)
 def commit_b(
-    event_id: str,
+    event_id: PublicId,
     body: CommitBRequest,
     user: CurrentActiveUser,
     db: Db,
@@ -147,7 +147,7 @@ def commit_b(
 
 @router.get("/{event_id}/judge-result", response_model=ApiEnvelope)
 def get_judge_result(
-    event_id: str,
+    event_id: PublicId,
     user: CurrentActiveUser,
     db: Db,
 ) -> dict[str, Any]:
@@ -172,7 +172,7 @@ def get_judge_result(
 
 @router.post("/{event_id}/followup-chat/messages", response_model=ApiEnvelope)
 def followup_chat(
-    event_id: str,
+    event_id: PublicId,
     body: FollowupRequest,
     user: CurrentActiveUser,
     db: Db,

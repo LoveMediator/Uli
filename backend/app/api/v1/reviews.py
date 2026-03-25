@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter
 from sqlalchemy import select
 
-from app.api.deps import CurrentActiveUser, Db
+from app.api.deps import CurrentActiveUser, Db, PublicId
 from app.core.errors import NotFoundError
 from app.models.event import Event
 from app.schemas.common import ApiEnvelope, envelope_success
@@ -17,7 +17,7 @@ router = APIRouter()
 
 @router.get("/{review_id}", response_model=ApiEnvelope)
 def get_review(
-    review_id: str,
+    review_id: PublicId,
     user: CurrentActiveUser,
     db: Db,
 ) -> dict[str, Any]:
@@ -42,7 +42,7 @@ def get_review(
 
 @router.put("/{review_id}", response_model=ApiEnvelope)
 def update_review(
-    review_id: str,
+    review_id: PublicId,
     body: ReviewUpdateRequest,
     user: CurrentActiveUser,
     db: Db,

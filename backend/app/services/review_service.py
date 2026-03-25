@@ -16,16 +16,21 @@ from app.utils.ids import generate_public_id
 from app.utils.permissions import assert_relationship_member
 
 
-def get_review(db: Session, user_id: int, review_public_id: str) -> Review:
-    """按 public_id 获取复盘详情，含权限校验。
-
-    对应 API §6.3 GET /reviews/{reviewId}。
-    """
+def _get_review_with_permission(db: Session, user_id: int, review_public_id: str) -> Review:
+    """查询复盘并校验权限（内部复用）。"""
     review = review_repo.get_review_by_public_id(db, review_public_id)
     if review is None:
         raise AppError("复盘不存在", code=NOT_FOUND)
     assert_relationship_member(db, review.relationship_id, user_id)
     return review
+
+
+def get_review(db: Session, user_id: int, review_public_id: str) -> Review:
+    """按 public_id 获取复盘详情，含权限校验。
+
+    对应 API §6.3 GET /reviews/{reviewId}。
+    """
+    return _get_review_with_permission(db, user_id, review_public_id)
 
 
 def update_review(
@@ -39,10 +44,7 @@ def update_review(
     对应 API §6.4 PUT /reviews/{reviewId}。
     同一事务内完成：更新正文 + 插入版本记录（DB §6.4）。
     """
-    review = review_repo.get_review_by_public_id(db, review_public_id)
-    if review is None:
-        raise AppError("复盘不存在", code=NOT_FOUND)
-    assert_relationship_member(db, review.relationship_id, user_id)
+    review = _get_review_with_permission(db, user_id, review_public_id)
     if not content or not content.strip():
         raise AppError("复盘内容不能为空", code=INVALID_PARAMS)
 
@@ -79,9 +81,8 @@ def create_review_from_judge(
 ) -> Review:
     """judged 后创建 review 并自动入历。
 
-    供 2 号在裁判完成后调用。同一事务内：
-    1. 创建 review
-    2. 创建 calendar_entry（自动入历，对应 CAL-FR-001）
+    供 event_service._execute_judge 在裁判完成后调用。
+    本函数只做 flush（不 commit），由调用方统一管理事务边界。
 
     Parameters
     ----------
@@ -103,8 +104,6 @@ def create_review_from_judge(
                 relationship_id=relationship_id,
                 calendar_date=entry_date,
             )
-            db.commit()
-            db.refresh(existing)
         return existing
 
     review = review_repo.create_review(
@@ -126,6 +125,4 @@ def create_review_from_judge(
         calendar_date=entry_date,
     )
 
-    db.commit()
-    db.refresh(review)
     return review

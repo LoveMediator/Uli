@@ -8,11 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.models.review import FollowupMessage
 
+DEFAULT_RECENT_MESSAGES_LIMIT = 10
+
 
 def get_recent_messages(
     db: Session,
     event_id: int,
-    limit: int = 10,
+    limit: int = DEFAULT_RECENT_MESSAGES_LIMIT,
 ) -> list[FollowupMessage]:
     """获取指定事件的近期复盘对话，按创建时间倒序，最多 limit 条。
 

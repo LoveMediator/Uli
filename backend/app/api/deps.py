@@ -1,7 +1,7 @@
 from collections.abc import Generator
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Path
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,10 @@ from app.repos import user_repo
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_db() -> Generator:
+PUBLIC_ID_MAX_LENGTH = 40
+
+
+def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
@@ -51,5 +54,6 @@ def get_current_active_user(
 
 
 Db = Annotated[Session, Depends(get_db)]
+PublicId = Annotated[str, Path(max_length=PUBLIC_ID_MAX_LENGTH)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentActiveUser = Annotated[User, Depends(get_current_active_user)]

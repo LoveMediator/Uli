@@ -12,6 +12,7 @@ from app.repos import judge_repo
 from app.utils.ids import generate_public_id
 
 MOCK_MODEL_NAME = "mock-judge-v1"
+MOCK_SUMMARY_PREVIEW_LEN = 30
 
 
 def generate_judge_result(
@@ -26,9 +27,11 @@ def generate_judge_result(
     真实实现应将 snapshot 内容拼成 prompt，调用 ai_service.call_llm，
     并用 Pydantic 校验 LLM 输出后写入 judge_results。
     """
-    objective_summary = f"[MOCK] 基于 A 侧快照「{snapshot_a.summary[:30]}…」"
+    summary_a = (snapshot_a.summary or "")[:MOCK_SUMMARY_PREVIEW_LEN]
+    objective_summary = f"[MOCK] 基于 A 侧快照「{summary_a}…」"
     if snapshot_b:
-        objective_summary += f"与 B 侧快照「{snapshot_b.summary[:30]}…」"
+        summary_b = (snapshot_b.summary or "")[:MOCK_SUMMARY_PREVIEW_LEN]
+        objective_summary += f"与 B 侧快照「{summary_b}…」"
     objective_summary += "生成的客观事实摘要。"
 
     triggers = ["[MOCK] 沟通频率下降", "[MOCK] 情绪管理失控"]

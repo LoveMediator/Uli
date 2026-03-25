@@ -54,6 +54,11 @@ def envelope_success(data: Any = None, *, message: str = DEFAULT_OK_MESSAGE) -> 
     return ApiEnvelope(code=OK_CODE, message=message, data=data)
 
 
+def envelope_data(model: BaseModel, *, message: str = DEFAULT_OK_MESSAGE) -> ApiEnvelope:
+    """从 Pydantic model 构造成功响应（自动 by_alias 序列化）。"""
+    return ApiEnvelope(code=OK_CODE, message=message, data=model.model_dump(by_alias=True))
+
+
 def envelope_error(*, code: int, message: str) -> ApiEnvelope:
     """构造错误响应（data 固定为 null）。"""
     return ApiEnvelope(code=code, message=message, data=None)

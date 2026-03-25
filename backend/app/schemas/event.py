@@ -73,12 +73,26 @@ class BAgreeData(BaseModel):
     judge_result_id: str = Field(alias="judgeResultId")
 
 
+class _PointItem(str):
+    """观点条目约束：单条最长 500 字符。"""
+
+    @classmethod
+    def __get_validators__(cls):  # noqa: used by Pydantic v1 compat
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v: str) -> str:
+        if len(v) > 500:
+            raise ValueError("单条观点不得超过 500 字符")
+        return v
+
+
 class CommitBRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     summary: str = Field(min_length=1, max_length=5000)
-    points_a: list[str] = Field(alias="pointsA")
-    points_b: list[str] = Field(alias="pointsB")
+    points_a: list[str] = Field(alias="pointsA", max_length=20)
+    points_b: list[str] = Field(alias="pointsB", max_length=20)
 
 
 class CommitBData(BaseModel):

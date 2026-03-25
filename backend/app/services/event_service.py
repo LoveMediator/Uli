@@ -5,15 +5,20 @@
 所有状态变更写 event_state_logs，AI 场景写 ai_call_logs。
 """
 
+import logging
 from datetime import UTC, datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.constants.enums import EventStatus, SnapshotSide
 from app.constants.error_codes import FORBIDDEN, INVALID_PARAMS, INVALID_STATE, NOT_FOUND, PREREQ_NOT_MET
 from app.core.errors import AppError
+
+logger = logging.getLogger(__name__)
 from app.models.event import Event
 from app.models.judge import JudgeResult
+from app.models.relationship import Relationship
 from app.models.snapshot import EventSnapshot
 from app.repos import audit_repo, event_repo, judge_repo, snapshot_repo
 from app.services import judge_service, review_service
@@ -45,6 +50,7 @@ def create_event(
     )
     db.commit()
     db.refresh(event)
+    logger.info("事件创建成功 event=%s user=%s rel=%s", event.public_id, user_id, rel.public_id)
     return event
 
 
@@ -93,6 +99,7 @@ def commit_a(
     db.commit()
     db.refresh(event)
     db.refresh(snapshot)
+    logger.info("Snapshot_A 已提交 event=%s user=%s", event.public_id, user_id)
     return event, snapshot
 
 
@@ -121,12 +128,27 @@ def get_snapshot_a(
 def _execute_judge(
     db: Session,
     event: Event,
-    rel: object,
+    rel: Relationship,
     snapshot_a: EventSnapshot,
     snapshot_b: EventSnapshot | None,
     operator_user_id: int,
 ) -> JudgeResult:
     """共用的裁判执行逻辑：生成结果 + 状态流转 + 日志 + 沉淀 review/calendar。"""
+    try:
+        return _execute_judge_inner(db, event, rel, snapshot_a, snapshot_b, operator_user_id)
+    except IntegrityError:
+        db.rollback()
+        raise AppError("裁判已生成，请勿重复操作", code=INVALID_STATE)
+
+
+def _execute_judge_inner(
+    db: Session,
+    event: Event,
+    rel: Relationship,
+    snapshot_a: EventSnapshot,
+    snapshot_b: EventSnapshot | None,
+    operator_user_id: int,
+) -> JudgeResult:
     judge_result = judge_service.generate_judge_result(
         db,
         event_id=event.id,
@@ -164,11 +186,11 @@ def _execute_judge(
         relationship_id=rel.id,
         content=judge_result.objective_summary,
     )
-    # create_review_from_judge may or may not commit; ensure everything is committed
-    db.commit()
 
+    db.commit()
     db.refresh(event)
     db.refresh(judge_result)
+    logger.info("裁判完成 event=%s judge=%s operator=%s", event.public_id, judge_result.public_id, operator_user_id)
     return judge_result
 
 

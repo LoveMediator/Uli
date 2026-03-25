@@ -51,6 +51,7 @@ def register_exception_handlers(app: Any) -> None:
     @app.exception_handler(AppError)
     async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
         status = http_status_for_code(exc.code)
+        logger.warning("业务异常 code=%s message=%s", exc.code, exc.message)
         return JSONResponse(
             status_code=status,
             content=_envelope_json(exc.code, exc.message),
@@ -70,6 +71,7 @@ def register_exception_handlers(app: Any) -> None:
             message = f"{loc}: {msg}" if loc else msg
         else:
             message = "参数校验失败"
+        logger.info("参数校验失败: %s", message)
         return JSONResponse(
             status_code=422,
             content=_envelope_json(INVALID_PARAMS, message),

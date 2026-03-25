@@ -9,10 +9,13 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.constants.enums import UserStatus
 from app.constants.error_codes import UNAUTHORIZED
@@ -58,6 +61,7 @@ def register_user(db: Session, *, username: str, password: str) -> UserModel:
     )
     db.commit()
     db.refresh(user)
+    logger.info("用户注册成功 user=%s", user.public_id)
     return user
 
 
@@ -85,6 +89,7 @@ def login_user(
             )
         )
         db.commit()
+        logger.warning("登录失败：用户不存在 username=%s", username)
         raise AuthError("用户名或密码错误")
 
     if user.status == UserStatus.LOCKED and user.locked_until is not None and user.locked_until <= now:
@@ -106,6 +111,7 @@ def login_user(
             )
         )
         db.commit()
+        logger.warning("登录失败：账号状态异常 user=%s status=%s", user.public_id, user.status)
         raise AccountLockedOrDisabledError("账号已锁定或禁用")
 
     if not verify_password(password, user.password_hash):
