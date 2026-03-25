@@ -37,26 +37,30 @@
   - `app/db/session.py`
   - `app/api/deps.py`
 
-### 2.2 未完成内容
+### 2.2 当前完成状态（截至 2026-03-25 提交 `a2f5d2c`）
 
-- 路由注册未完成：
-  - `app/api/router.py`
-- v1 API 基本为空：
-  - `app/api/v1/auth.py`
-  - `app/api/v1/events.py`
-  - `app/api/v1/calendar.py`
-  - `app/api/v1/reviews.py`
-  - `app/api/v1/elf.py`
-- service 层为空：
-  - `app/services/*.py`
-- repo 层为空：
-  - `app/repos/*.py`
-- schema 层为空：
-  - `app/schemas/*.py`
-- 测试基本为空：
-  - `tests/conftest.py`
-  - `tests/api/`
-  - `tests/services/`
+> 以下清单反映仓库实际代码状态，原"未完成内容"已整体替换。
+
+- **路由聚合**：`app/api/router.py` 已注册 auth / events / calendar / reviews / elf 五组路由
+- **v1 API 路由**：
+  - `app/api/v1/auth.py` — 4 个端点（register / login / refresh / logout）
+  - `app/api/v1/events.py` — 8 个端点（create / commit-a / invite / snapshot-a / b-agree / commit-b / judge-result / followup-chat）
+  - `app/api/v1/calendar.py` — 2 个端点（月历 / 日列表）
+  - `app/api/v1/reviews.py` — 2 个端点（GET / PUT）
+  - `app/api/v1/elf.py` — 2 个端点（relay / moderate）
+- **service 层**：`auth_service` / `event_service` / `judge_service`（mock）/ `ai_service`（占位）/ `review_service` / `calendar_service` / `followup_service` / `elf_service`
+- **repo 层**：`user_repo` / `event_repo` / `snapshot_repo` / `judge_repo` / `audit_repo` / `review_repo` / `followup_repo` / `elf_repo`
+- **schema 层**：`common` / `auth` / `event` / `judge` / `review` / `calendar` / `followup` / `elf`
+- **公共工具**：`utils/permissions.py`（权限校验）/ `utils/context_builder.py`（复盘上下文）/ `utils/ids.py`（public_id 生成）
+- **workers 骨架**：`workers/celery_app.py` / `workers/tasks.py` / `workers/hooks.py`（占位，主链仍为同步）
+- **测试**：`tests/conftest.py`（fixture）；`tests/api/` 下 events / reviews / calendar / elf / exception_handlers；`tests/services/` 下 event / judge / review / calendar / interaction
+- **seed 脚本**：`scripts/seed_db.py`
+
+**仍未实现的功能**：
+- `POST /events/{eventId}/private-chat/messages`（MED-FR-001 私有会话，尚未开发）
+- `reviewed` / `closed` 状态流转（枚举已定义，业务逻辑未实现）
+- 真实 LLM 调用（judge / followup / elf 均为 mock）
+- CORS 中间件、请求限速中间件、`X-Trace-Id` 响应头
 
 ### 2.3 当前统一约束
 
@@ -490,12 +494,18 @@
 - `app/schemas/review.py`
 - `app/schemas/calendar.py`
 - `app/schemas/elf.py`
+- `app/schemas/followup.py`
 - `app/services/review_service.py`
 - `app/services/calendar_service.py`
+- `app/services/followup_service.py`
+- `app/services/elf_service.py`
 - `app/repos/review_repo.py`
+- `app/repos/followup_repo.py`
+- `app/repos/elf_repo.py`
 - `app/utils/context_builder.py`
+- `app/utils/permissions.py`
 - `tests/api/` 下 review / calendar / elf 测试
-- `tests/services/` 下 review / calendar / followup 测试
+- `tests/services/` 下 review / calendar / followup / interaction 测试
 
 ### 6.4 详细任务拆分
 

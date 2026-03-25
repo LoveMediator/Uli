@@ -1,4 +1,4 @@
-﻿# LoveMediator API 设计文档（API v1.0）
+# LoveMediator API 设计文档（API v1.0）
 
 ## 1. 文档信息
 - 对应功能文档：`docs/FD_LoveMediator_v1.md`
@@ -165,10 +165,11 @@
 
 ## 5. 大模块二：AI 调解 API（MED）
 
-### 5.1 私有会话发消息（MED-FR-001）
+### 5.1 私有会话发消息（MED-FR-001）⚠ 未实现
 - 方法与路径：`POST /api/v1/events/{eventId}/private-chat/messages`
 - 鉴权：是（仅事件参与者本人）
 - 说明：仅写入私有会话，不写共享快照。
+- **实现状态**：模型已预留（`models/session.py` 中 `PrivateSession` / `PrivateMessage`），路由与服务层尚未开发。当前 MVP 中 commit-a 直接接收 `confirmText` 作为快照内容。
 - 请求体：
 ```json
 {
@@ -384,8 +385,9 @@
 ## 6. 大模块三：吵架日历 API（CAL）
 
 ### 6.1 月历查询（CAL-FR-002）
-- 方法与路径：`GET /api/v1/calendar?month=2026-02`
+- 方法与路径：`GET /api/v1/calendar?month=2026-02&relationshipId=rel_001`
 - 鉴权：是
+- 必填查询参数：`month`（格式 `YYYY-MM`）、`relationshipId`（关系 public_id，用于区分多关系场景）
 - 成功响应：
 ```json
 {
@@ -403,8 +405,9 @@
 - 业务错误：`1001` `2001` `5000`
 
 ### 6.2 日期复盘列表（CAL-FR-002）
-- 方法与路径：`GET /api/v1/calendar/days/{date}/reviews`
+- 方法与路径：`GET /api/v1/calendar/days/{date}/reviews?relationshipId=rel_001`
 - 鉴权：是
+- 必填查询参数：`relationshipId`（关系 public_id）
 - 成功响应：
 ```json
 {

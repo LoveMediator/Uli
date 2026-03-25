@@ -140,7 +140,7 @@
 | 层级 | 名称 | 职责与要点 |
 |------|------|------------|
 | **客户端接入层 (Client Access)** | React SPA (Vite) + 分享与拉新 | Mobile-first SPA，React Router 路由、Zustand 状态管理、TanStack Query 服务端缓存、Tailwind CSS 样式。B 通过分享链接进入邀请页，完成注册/登录后查看 A 的控诉并继续回应。微信分享 OG 信息由后端 API 或独立预渲染服务提供。详见 `FE_LoveMediator_v1.md`。 |
-| **API 网关与编排层 (Orchestration)** | FastAPI | 鉴权、限流、状态机流转。Privacy Middleware：出站拦截器，响应返回前正则扫描并掩码 PII（手机号、真名），确保合规。 |
+| **API 网关与编排层 (Orchestration)** | FastAPI | 鉴权（JWT + `CurrentActiveUser` 依赖注入）、统一 `ApiEnvelope` 响应、全局异常处理（`exception_handlers.py`）、状态机流转（`event_service.py`）。**设计中 / 未实现**：Privacy Middleware（PII 出站掩码）、CORS 中间件、请求限速中间件。 |
 | **智能服务层 (Intelligence Service)** | Prompt + LLM | Prompt Engine：基于 Jinja2 的模板管理，Prompt 与代码解耦。Structured Output：Instructor 或 Pydantic 校验 LLM 输出，确保 100% JSON 格式安全。 |
 | **数据持久层 (Persistence)** | PostgreSQL (Supabase) + pgvector | 业务数据存储；pgvector 存历史判决 Embedding，用于情感日历的冲突聚类（如「本月第 3 次因家务争吵」）。 |
 
@@ -286,7 +286,7 @@
 | 3003 | 事件尚未满足分析前置条件 |
 | 5000 | 系统内部错误 |
 
-**HTTP 状态码与 body.code**：4xx/5xx 时 body 仍为上述结构；429 对应 2004，413 对应单文件超限（可复用 1001 或单独约定）。所有响应（含错误）均携带响应头 **X-Trace-Id**（与 9.4 全链路 trace_id 一致）。
+**HTTP 状态码与 body.code**：4xx/5xx 时 body 仍为上述结构；429 对应 2004，413 对应单文件超限（可复用 1001 或单独约定）。**设计规划**：所有响应（含错误）携带响应头 **X-Trace-Id**（与 9.4 全链路 trace_id 一致）。**当前状态**：`trace_id` 字段已在 `event_state_logs` 和 `ai_call_logs` 模型中预留（见 `models/audit.py`），但 X-Trace-Id 响应头中间件尚未实现。
 
 ### 6.6 API 接口契约（与 API 文档一致）
 
@@ -304,8 +304,9 @@
 | 方法 | 路径 | 功能 |
 |------|------|------|
 | POST | `/api/v1/events` | 创建事件（draft） |
-| POST | `/api/v1/events/{eventId}/private-chat/messages` | 私有会话发消息（MED-FR-001） |
+| POST | `/api/v1/events/{eventId}/private-chat/messages` | 私有会话发消息（MED-FR-001）**⚠ 未实现** |
 | POST | `/api/v1/events/{eventId}/commit-a` | A 确认并冻结 Snapshot_A（MED-FR-002） |
+| GET | `/api/v1/events/{eventId}/invite` | 邀请页信息（无需鉴权） |
 | GET | `/api/v1/events/{eventId}/snapshot-a` | B 预览 Snapshot_A（MED-FR-003） |
 | POST | `/api/v1/events/{eventId}/b-agree` | B 同意并触发裁判（MED-FR-003/004） |
 | POST | `/api/v1/events/{eventId}/commit-b` | B 提交 Snapshot_B 并触发裁判（MED-FR-003/004） |
@@ -346,11 +347,11 @@
 
 ### 7.1 罗生门架构实现（与 FD 核心流程一致）
 
-- **A 私有分析**：A 与 AI 在 **private_sessions / private_messages** 中对话，仅做文本整理与观点抽取，**不写共享 Event**（FD 5.3）。
-- **A 确认事实（commit-a）**：后端从当前私有会话生成结构化事实，插入 **event_snapshots(side='a')** 并冻结，**events.status** 置为 `waiting_b`；事务内写入 **event_state_logs**（DB §6.1）。
-- **B 分支**：  
-  - **B 同意**：`b-agree` 内部执行 `judge(snapshot_A, inferred_snapshot_B)`，插入 **judge_results**，**events.status** 置为 `judged`（DB §6.2）。  
-  - **B 不同意**：B 进入私有分析后 **commit-b**，插入 **event_snapshots(side='b')**，再生成 **judge_results**，**events.status** 置为 `judged`（DB §6.3）。
+- **A 私有分析**：A 与 AI 在 **private_sessions / private_messages** 中对话，仅做文本整理与观点抽取，**不写共享 Event**（FD 5.3）。**当前状态**：`private-chat` 接口（MED-FR-001）尚未实现，模型已预留（`models/session.py`）。
+- **A 确认事实（commit-a）**：**MVP 实现**：请求体的 `confirmText` 直接作为 **event_snapshots(side='a')** 的 `summary`（见 `event_service.commit_a`），并冻结快照，**events.status** 置为 `waiting_b`；事务内写入 **event_state_logs**（DB §6.1）。**完整流程（待实现）**：从当前私有会话生成结构化事实后再写入快照。
+- **B 分支**：
+  - **B 同意**：`b-agree` 校验 `agree=true` 后执行 `judge(snapshot_A, inferred_snapshot_B)`，插入 **judge_results**，**events.status** 置为 `judged`（DB §6.2）；同时自动创建 **reviews** + **calendar_entries**（见 `review_service.create_review_from_judge`）。
+  - **B 不同意**：B 提交 **commit-b**（含 `summary` / `pointsA` / `pointsB`），插入 **event_snapshots(side='b')**，再生成 **judge_results**，**events.status** 置为 `judged`（DB §6.3）；同样自动沉淀 review + calendar。
 - **裁判结果**：**只读落库**，查看结果时严禁实时调用 LLM（API 实现约束）；后续复盘聊天不得修改已冻结 Snapshot 与已生成 JudgeResult（FD 5.6、5.7）。
 - **Prompt 与 LLM**：罗生门视角模板入参为 Snapshot A/B（及可选 RAG 历史）；Instructor + Pydantic 结构化输出（如 JudgeResultSchema：objective_summary、triggers、misunderstandings、advice_for_a/b）；长文本与上下文管理见 7.5，注入防御见 7.6。若采用 **Celery** 异步执行判决，见 7.3 重试与失败处理。
 
@@ -487,54 +488,98 @@
 /project-root
 ├── /backend (FastAPI)
 │   ├── /alembic                      # [DB] 数据库迁移
-│   │   ├── /versions                 # 迁移历史 (e.g. 001_add_case_table.py)
+│   │   ├── /versions                 # 迁移历史 (e.g. 9f41939eaaea_init.py)
 │   │   └── env.py
 │   ├── /app
 │   │   ├── /api
-│   │   │   ├── /v1                   # [Core] 核心业务
-│   │   │   │   ├── /events            # 事件：创建、commit-a、b-agree、commit-b、judge-result
-│   │   │   │   ├── /calendar         # 情感日历：Timeline, Insight
-│   │   │   │   ├── /users            # 用户：Profile, Auth
+│   │   │   ├── /v1                   # [Core] 核心业务路由（扁平文件，非子目录）
+│   │   │   │   ├── auth.py           # 认证：register / login / refresh / logout
+│   │   │   │   ├── events.py         # 事件主链：create / commit-a / invite / snapshot-a / b-agree / commit-b / judge-result / followup-chat
+│   │   │   │   ├── calendar.py       # 情感日历：月历 / 日列表
+│   │   │   │   ├── reviews.py        # 复盘：详情 / 编辑
+│   │   │   │   ├── elf.py            # 小精灵：代转达 / 过激检测
 │   │   │   │   └── __init__.py
-│   │   │   ├── /v2                   # [Future] 预留
-│   │   │   │   ├── /elf              # 小精灵传话 (501)
-│   │   │   │   └── /memories         # 甜蜜日常 (501)
-│   │   │   └── deps.py               # [Auth] 依赖注入（JWT、DB、Redis）
+│   │   │   ├── deps.py               # [Auth] 依赖注入：Db / CurrentUser / CurrentActiveUser
+│   │   │   ├── exception_handlers.py # 全局异常 → 统一 envelope
+│   │   │   └── router.py             # 路由聚合
 │   │   ├── /core                     # [Infra]
-│   │   │   ├── config.py             # Pydantic Settings（含 .env 安全与限流项，见 9.5）
+│   │   │   ├── config.py             # Pydantic Settings（含 .env 安全项，见 9.5）
 │   │   │   ├── security.py           # JWT 鉴权与密码安全
-│   │   │   ├── middleware.py         # PII 脱敏、CORS、Rate Limiting（见 8.4）
-│   │   │   └── exceptions.py         # CostOverrun, UnsafeContent 等
-│   │   ├── /crud                     # [DB] 原子 CRUD
-│   │   │   ├── crud_event.py
-│   │   │   └── crud_user.py
-│   │   ├── /models                   # [Schema] SQLModel 表定义（与 DB 文档一致）
+│   │   │   ├── errors.py             # 业务异常类与错误码映射
+│   │   │   └── logging.py            # 日志配置
+│   │   ├── /constants                # 枚举与常量
+│   │   │   ├── enums.py              # EventStatus / SnapshotSide / UserStatus 等
+│   │   │   └── error_codes.py        # 整型错误码（与 API 文档 §2.4 对齐）
+│   │   ├── /repos                    # [DB] 数据访问层（原 crud，已重命名）
+│   │   │   ├── user_repo.py
+│   │   │   ├── event_repo.py
+│   │   │   ├── snapshot_repo.py
+│   │   │   ├── judge_repo.py
+│   │   │   ├── audit_repo.py         # event_state_logs + ai_call_logs
+│   │   │   ├── review_repo.py        # reviews + review_versions + calendar_entries
+│   │   │   ├── followup_repo.py
+│   │   │   └── elf_repo.py
+│   │   ├── /models                   # [Schema] SQLAlchemy ORM 表定义（与 DB 文档一致）
+│   │   │   ├── user.py               # User / RefreshToken / AuthLoginLog
+│   │   │   ├── relationship.py
 │   │   │   ├── event.py
-│   │   │   ├── user.py
-│   │   │   ├── judge_result.py
-│   │   │   └── enums.py
-│   │   ├── /schemas                  # [Contract] Pydantic 请求/响应 & LLM 输出
-│   │   │   ├── request.py
-│   │   │   └── response.py
-│   │   ├── /prompts                  # [AI] Jinja2 模板
-│   │   │   ├── god_view.jinja2
-│   │   │   ├── invite_judge.jinja2
-│   │   │   └── insight.jinja2
-│   │   ├── /services                 # [Logic] 复杂业务
-│   │   │   ├── llm_agent.py          # Instructor + Tenacity
-│   │   │   ├── ocr_pipeline.py       # OCR + 敏感词过滤
-│   │   │   └── vector_store.py       # pgvector 检索与聚类
-│   │   ├── /workers                  # [Async] Celery
+│   │   │   ├── snapshot.py           # EventSnapshot
+│   │   │   ├── judge.py              # JudgeResult
+│   │   │   ├── review.py             # Review / ReviewVersion / CalendarEntry / FollowupMessage
+│   │   │   ├── elf.py                # ElfMessage / ModerationLog
+│   │   │   ├── audit.py              # EventStateLog / AiCallLog
+│   │   │   └── session.py            # PrivateSession / PrivateMessage（预留）
+│   │   ├── /schemas                  # [Contract] Pydantic 请求/响应（仅 data 内层，外层 envelope 在 common.py）
+│   │   │   ├── common.py             # ApiEnvelope / envelope_success / envelope_error
+│   │   │   ├── auth.py
+│   │   │   ├── event.py
+│   │   │   ├── judge.py
+│   │   │   ├── review.py
+│   │   │   ├── calendar.py
+│   │   │   ├── followup.py
+│   │   │   └── elf.py
+│   │   ├── /services                 # [Logic] 业务编排
+│   │   │   ├── auth_service.py       # 注册 / 登录锁定 / refresh / logout
+│   │   │   ├── event_service.py      # 事件主链状态机与裁判串联
+│   │   │   ├── judge_service.py      # 裁判生成（当前 mock，后续接 LLM）
+│   │   │   ├── ai_service.py         # LLM 统一调用入口（占位）
+│   │   │   ├── review_service.py     # 复盘详情 / 编辑 / judged 后自动创建
+│   │   │   ├── calendar_service.py   # 月历聚合 / 日列表
+│   │   │   ├── followup_service.py   # 复盘聊天（build_context → mock LLM）
+│   │   │   └── elf_service.py        # 代转达 / 过激检测（mock LLM）
+│   │   ├── /utils                    # [Shared] 公共工具
+│   │   │   ├── permissions.py        # 关系成员校验 / 事件权限
+│   │   │   ├── context_builder.py    # followup 上下文拼接（罗生门原则）
+│   │   │   └── ids.py                # public_id 生成（UUID4）
+│   │   ├── /workers                  # [Async] Celery 骨架（主链仍为同步）
 │   │   │   ├── celery_app.py
-│   │   │   └── tasks.py              # 判决生成、每日报告等
-│   │   └── main.py
+│   │   │   ├── tasks.py
+│   │   │   └── hooks.py
+│   │   └── main.py                   # FastAPI 入口 + 异常处理注册
 │   ├── /tests
-│   │   ├── /api
-│   │   └── /services                  # 含 AI Golden Dataset
+│   │   ├── conftest.py               # 测试 fixture（用户 / 关系 / 事件 / auth headers）
+│   │   ├── /api                      # API 路由测试
+│   │   │   ├── test_events_api.py
+│   │   │   ├── test_reviews_api.py
+│   │   │   ├── test_calendar_api.py
+│   │   │   ├── test_elf_api.py
+│   │   │   └── test_exception_handlers.py
+│   │   ├── /services                 # Service 单元测试
+│   │   │   ├── test_event_service.py
+│   │   │   ├── test_judge_service.py
+│   │   │   ├── test_review_service.py
+│   │   │   ├── test_calendar_service.py
+│   │   │   └── test_interaction_services.py
+│   │   └── /schemas
+│   │       └── test_common_a1_acceptance.py
+│   ├── /scripts
+│   │   └── seed_db.py                # 幂等种子数据（本地联调用）
+│   ├── /docs
+│   │   ├── task_assignment.md        # 三人分工与任务状态
+│   │   └── models.md                 # 表结构说明
 │   ├── alembic.ini
 │   ├── Dockerfile
-│   ├── pyproject.toml                # 或 requirements.txt
-│   └── start.sh                      # Migration + Uvicorn + Worker
+│   └── pyproject.toml
 │
 ├── /frontend (React + Vite + Tailwind)
 │   ├── /public

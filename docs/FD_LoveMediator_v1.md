@@ -1,10 +1,11 @@
-﻿# LoveMediator 功能设计文档（FD）
+# LoveMediator 功能设计文档（FD）
 
 ## 1. 文档信息
-- 文档版本：V1.0
+- 文档版本：V1.1
 - 文档状态：可评审
 - 覆盖范围：登录注册、AI 调解、吵架日历、互动模块（分阶段）
 - 设计原则：后端状态机驱动；LLM 仅作为分析节点，不承担流程决策与状态管理
+- 修订记录：V1.0 → V1.1：状态枚举命名统一为小写 `waiting_b`（与代码 `constants/enums.py` 一致）；§5.4 补充 MVP 实现说明（`confirmText` 直接写入快照）；§3.3 标注 `reviewed`/`closed` 实现状态；§5.2 修正 `waiting_B` → `waiting_b`。
 
 ## 2. 系统本质说明
 - 本产品在工程上本质是：双人协作工作流系统 + 若干 LLM 分析节点。
@@ -32,16 +33,16 @@
 - PrivateSession：个人私有分析会话。
 
 ### 3.3 事件状态机
-Event.status：
-- draft：草稿/私有阶段。
-- waiting_B：A 已确认，等待 B 处理。
-- judged：裁判结果已生成。
-- reviewed：已沉淀复盘（可选）。
-- closed：事件关闭（可选）。
+Event.status（枚举值均为小写，对应代码 `constants/enums.py` 中的 `EventStatus`）：
+- `draft`：草稿/私有阶段。
+- `waiting_b`：A 已确认，等待 B 处理。
+- `judged`：裁判结果已生成。
+- `reviewed`：已沉淀复盘（枚举已定义，业务流转待实现）。
+- `closed`：事件关闭（枚举已定义，业务流转待实现）。
 
 合法流转：
-- draft -> waiting_B -> judged
-- judged -> reviewed -> closed
+- `draft` -> `waiting_b` -> `judged`（已实现，见 `services/event_service.py`）
+- `judged` -> `reviewed` -> `closed`（待实现）
 
 ## 4. 大模块一：登录注册模块（用户名+密码，P0）
 
@@ -65,7 +66,7 @@ Event.status：
   5. 通过后签发 access_token + refresh_token。
   6. 记录登录日志。
 - 成功：前端保存令牌，跳转主页。
-- 失败：统一返回“用户名或密码错误”或状态类错误。
+- 失败：统一返回"用户名或密码错误"或状态类错误。
 
 ### 4.4 登出与刷新
 - 登出：服务端使 refresh token 失效。
@@ -90,33 +91,33 @@ Event.status：
 
 ### 5.2 核心流程
 1. A 私有分析阶段（不落共享数据）。
-2. A 确认事实并冻结为 Snapshot_A，事件进入 waiting_B。
+2. A 确认事实并冻结为 Snapshot_A，事件进入 `waiting_b`。
 3. 推送给 B，B 选择同意或不同意。
-4. 生成 JudgeResult，事件进入 judged。
+4. 生成 JudgeResult，事件进入 `judged`。
 5. 双方查看固定结果，后续可继续复盘聊天。
 
 ### 5.3 A 私有分析阶段
-- A 点击“聊天分析”。
+- A 点击"聊天分析"。
 - A 与 AI 对话，AI 仅做文本整理和观点抽取。
 - 该阶段数据仅在私有会话中使用，不写共享 Event。
 
 ### 5.4 A 确认事实（Commit/Freeze）
-- A 点击“对，基本是这样”。
+- A 点击"对，基本是这样"。
 - 后端执行：
-  1. 从当前会话生成结构化事实。
+  1. **MVP 实现**（当前）：请求体 `confirmText` 直接作为 Snapshot_A 的 `summary`（见 `services/event_service.py` 的 `commit_a` 函数）。**完整流程**（待实现）：从当前私有会话（`private_messages`）生成结构化事实。
   2. 创建 Snapshot_A（冻结，不可修改）。
-  3. 持久化保存。
-  4. Event.status 置为 waiting_B。
+  3. 持久化保存，写入 `event_state_logs`（见 `repos/audit_repo.py`）。
+  4. Event.status 置为 `waiting_b`。
 - 该行为定义为一次明确的 commit/freeze。
 
 ### 5.5 发送给 B
 - 系统推送 Snapshot_A 给 B，B 默认只读。
 - B 有两种分支：
-  1. 同意：直接 `judge(snapshot_A, snapshot_B=empty|inferred)`，生成 JudgeResult，Event.status=judged。
-  2. 不同意：进入 B 私有分析流程，确认后生成 Snapshot_B，再 `judge(snapshot_A, snapshot_B)`，Event.status=judged。
+  1. 同意：`b-agree` 校验 `agree=true` 后执行 `judge(snapshot_A, inferred_snapshot_B)`，生成 JudgeResult，Event.status=`judged`。同时自动创建 review + calendar_entry（见 `services/review_service.create_review_from_judge`）。
+  2. 不同意：B 提交 `commit-b`（含 summary/pointsA/pointsB），生成 Snapshot_B，再 `judge(snapshot_A, snapshot_B)`，Event.status=`judged`。同样自动沉淀 review + calendar。
 
 ### 5.6 查看结果
-- 用户点击“分析结果”时，系统直接读取落库 JudgeResult。
+- 用户点击"分析结果"时，系统直接读取落库 JudgeResult。
 - 不实时调用 AI，确保结果稳定、可复现。
 
 ### 5.7 后续自由聊天
@@ -124,11 +125,11 @@ Event.status：
 - 后续聊天不得修改已冻结 Snapshot 与已生成 JudgeResult。
 
 ### 5.8 记忆实现
-采用“检索式上下文拼接”：每次请求都由后端实时构建上下文。
+采用"检索式上下文拼接"：每次请求都由后端实时构建上下文（见 `utils/context_builder.py`）。
 
 `build_context(user_id, event_id)` 必含：
 1. 最近对话（短期记忆，6-10 轮）。
-2. 事实快照（snapshot_A/snapshot_B）。
+2. 事实快照（snapshot_A/snapshot_B，罗生门原则：分别读取，禁止合并）。
 3. 历史记录（吵架日历，可逐步接入）。
 4. 裁判结果（judge_result）。
 5. 当前输入（current_message）。
@@ -189,7 +190,7 @@ Prompt 模板骨架：
 
 ## 8. 验收标准（UAT）
 - A 未确认前，数据库不得写入 Snapshot_A。
-- A 确认后，Event 状态必须变更为 waiting_B。
+- A 确认后，Event 状态必须变更为 `waiting_b`。
 - B 同意或提交 Snapshot_B 后，必须可生成 JudgeResult。
 - 分析结果页面重复打开不得触发新判定。
 - 后续复盘对话可引用已确认 Snapshot 与 JudgeResult。

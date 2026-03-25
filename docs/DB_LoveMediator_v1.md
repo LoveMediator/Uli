@@ -348,7 +348,7 @@
 - `from_status event_status not null`
 - `to_status event_status not null`
 - `action varchar(40) not null`  
-  示例：`commit_a`, `b_agree`, `commit_b`, `close_event`
+  示例：`commit_a`（A 确认快照）、`judge`（裁判完成，含 b-agree 和 commit-b 两条路径）、`close_event`（关闭事件，待实现）。注：当前代码中 b-agree 与 commit-b 统一使用 `judge` 作为 action（见 `services/event_service._execute_judge`）。
 - `operator_user_id bigint null references users(id)`
 - `trace_id varchar(64) null`
 - `created_at timestamptz not null default now()`
@@ -421,11 +421,13 @@
 - `POST /auth/refresh` -> `refresh_tokens`
 - `POST /auth/logout` -> `refresh_tokens`
 - `POST /events` -> `events`
-- `POST /events/{id}/private-chat/messages` -> `private_sessions`, `private_messages`, `ai_call_logs`
+- `POST /events/{id}/private-chat/messages` -> `private_sessions`, `private_messages`, `ai_call_logs`（⚠ 未实现）
 - `POST /events/{id}/commit-a` -> `event_snapshots`, `events`, `event_state_logs`
-- `POST /events/{id}/b-agree` -> `judge_results`, `events`, `event_state_logs`, `ai_call_logs`
-- `POST /events/{id}/commit-b` -> `event_snapshots`, `judge_results`, `events`, `event_state_logs`, `ai_call_logs`
-- `GET /events/{id}/judge-result` -> `judge_results`
+- `GET /events/{id}/invite` -> `events`（只读，无需鉴权）
+- `GET /events/{id}/snapshot-a` -> `event_snapshots`（只读）
+- `POST /events/{id}/b-agree` -> `judge_results`, `events`, `event_state_logs`, `ai_call_logs`, `reviews`, `calendar_entries`
+- `POST /events/{id}/commit-b` -> `event_snapshots`, `judge_results`, `events`, `event_state_logs`, `ai_call_logs`, `reviews`, `calendar_entries`
+- `GET /events/{id}/judge-result` -> `judge_results`（只读）
 - `POST /events/{id}/followup-chat/messages` -> `followup_messages`, `ai_call_logs`
 - `GET /calendar` -> `calendar_entries`
 - `GET /calendar/days/{date}/reviews` -> `calendar_entries`, `reviews`
