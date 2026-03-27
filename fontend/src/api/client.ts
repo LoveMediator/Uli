@@ -1,103 +1,94 @@
-import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { ApiResponse } from '../types/api';
+import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { API_BASE_URL } from '@/lib/constants';
+import { useAuthStore } from '@/stores/auth-store';
+import { ApiClientError, type ApiResponse, ErrorCode } from '@/types/api';
+import type { RefreshTokenResponse } from '@/types/auth';
 
-// API基础URL
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+type RetriableRequest = InternalAxiosRequestConfig & { _retry?: boolean };
 
-// 创建axios实例
-const apiClient: AxiosInstance = axios.create({
-  baseURL: BASE_URL,
+const authFreePaths = ['/auth/login', '/auth/register', '/auth/refresh'];
+
+export const apiClient = axios.create({
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json; charset=utf-8',
   },
 });
 
-// Token管理
-let accessToken: string | null = null;
-let refreshToken: string | null = null;
+apiClient.interceptors.request.use((config) => {
+  const accessToken = useAuthStore.getState().accessToken;
 
-export const setTokens = (access: string, refresh: string) => {
-  accessToken = access;
-  refreshToken = refresh;
-  localStorage.setItem('accessToken', access);
-  localStorage.setItem('refreshToken', refresh);
-};
-
-export const getAccessToken = () => {
-  if (!accessToken) {
-    accessToken = localStorage.getItem('accessToken');
+  if (accessToken && config.headers) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
   }
-  return accessToken;
-};
 
-export const getRefreshToken = () => {
-  if (!refreshToken) {
-    refreshToken = localStorage.getItem('refreshToken');
-  }
-  return refreshToken;
-};
+  return config;
+});
 
-export const clearTokens = () => {
-  accessToken = null;
-  refreshToken = null;
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
-};
-
-// 请求拦截器 - 注入Token
-apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const token = getAccessToken();
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// 响应拦截器 - 处理错误和Token刷新
 apiClient.interceptors.response.use(
   (response) => response,
-  async (error: AxiosError<ApiResponse>) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+  async (error: AxiosError<ApiResponse<unknown>>) => {
+    const originalRequest = error.config as RetriableRequest | undefined;
+    const requestUrl = originalRequest?.url ?? '';
+    const isAuthFreeRequest = authFreePaths.some((path) => requestUrl.includes(path));
 
-    // Token过期，尝试刷新
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthFreeRequest) {
       originalRequest._retry = true;
 
-      try {
-        const refresh = getRefreshToken();
-        if (!refresh) {
-          throw new Error('No refresh token');
-        }
+      const refreshToken = useAuthStore.getState().refreshToken;
+      if (!refreshToken) {
+        useAuthStore.getState().clearSession();
+        return Promise.reject(new ApiClientError('登录状态已失效，请重新登录。', ErrorCode.authFailed, 401));
+      }
 
-        const response = await axios.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
-          `${BASE_URL}/auth/refresh`,
-          { refreshToken: refresh }
+      try {
+        const response = await axios.post<ApiResponse<RefreshTokenResponse>>(
+          `${API_BASE_URL}/auth/refresh`,
+          { refreshToken },
+          {
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+            },
+          },
         );
 
-        if (response.data.code === 0 && response.data.data) {
-          const { accessToken: newAccess, refreshToken: newRefresh } = response.data.data;
-          setTokens(newAccess, newRefresh);
-
-          // 重试原请求
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${newAccess}`;
-          }
-          return apiClient(originalRequest);
+        if (response.data.code !== ErrorCode.success || !response.data.data) {
+          throw new ApiClientError(response.data.message, response.data.code, response.status);
         }
-      } catch (refreshError) {
-        // 刷新失败，清除Token并跳转登录
-        clearTokens();
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
+
+        useAuthStore
+          .getState()
+          .updateAccessToken(
+            response.data.data.accessToken,
+            response.data.data.tokenType,
+            response.data.data.userId,
+          );
+
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${response.data.data.accessToken}`;
+        }
+
+        return apiClient(originalRequest);
+      } catch {
+        useAuthStore.getState().clearSession();
+        if (window.location.pathname.startsWith('/app')) {
+          window.location.assign('/login');
+        }
       }
     }
 
-    return Promise.reject(error);
-  }
+    const status = error.response?.status;
+    const message = error.response?.data?.message ?? error.message ?? '请求失败';
+    const code = error.response?.data?.code ?? ErrorCode.internalError;
+    return Promise.reject(new ApiClientError(message, code, status));
+  },
 );
 
-export default apiClient;
+export function unwrapResponse<T>(response: { data: ApiResponse<T>; status?: number }) {
+  if (response.data.code !== ErrorCode.success || response.data.data === null) {
+    throw new ApiClientError(response.data.message, response.data.code, response.status);
+  }
+
+  return response.data.data;
+}

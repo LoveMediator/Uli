@@ -1,79 +1,103 @@
-import { EventStatus, MessageRole } from './enums';
+import type { EventStatusValue } from './enums';
 
-// 事件
-export interface Event {
-  id: string;
-  relationshipId: string;
-  status: EventStatus;
-  createdAt: string;
-  updatedAt: string;
-  snapshotAId?: string;
-  snapshotBId?: string;
-  judgeResultId?: string;
-  reviewId?: string;
-}
-
-// 快照
-export interface Snapshot {
-  id: string;
-  eventId: string;
-  userId: string;
-  title: string;
-  description: string;
-  context: string;
-  frozenAt?: string;
-  createdAt: string;
-}
-
-// 聊天消息
-export interface ChatMessage {
-  id: string;
-  role: MessageRole;
-  content: string;
-  timestamp: string;
-}
-
-// 裁判结果
-export interface JudgeResult {
-  id: string;
-  eventId: string;
-  summary: string;
-  aResponsibility: number;
-  bResponsibility: number;
-  suggestions: string[];
-  generatedAt: string;
-}
-
-// 创建事件请求
 export interface CreateEventRequest {
   title: string;
-  initialMessage: string;
+  relationshipId: string;
 }
 
-// 发送私聊消息请求
-export interface SendPrivateChatRequest {
-  message: string;
+export interface CreateEventData {
+  eventId: string;
+  status: EventStatusValue;
 }
 
-// 提交快照A请求
-export interface CommitSnapshotARequest {
-  title: string;
-  description: string;
+export interface CommitARequest {
+  confirmText: string;
 }
 
-// B方同意请求
-export interface BAgreementRequest {
+export interface CommitAData {
+  eventId: string;
+  status: EventStatusValue;
+  snapshotAId: string;
+}
+
+export interface InviteData {
+  eventId: string;
+  status: EventStatusValue;
+  title: string | null;
+  inviteMessage: string;
+  requiresAuth: boolean;
+}
+
+export interface SnapshotPayload {
+  summary: string;
+  pointsA: string[];
+  pointsB: string[];
+}
+
+export interface SnapshotAData {
+  eventId: string;
+  status: EventStatusValue;
+  snapshotA: SnapshotPayload;
+}
+
+export interface BAgreeRequest {
   agree: boolean;
-  reason?: string;
 }
 
-// 提交快照B请求
-export interface CommitSnapshotBRequest {
-  title: string;
-  description: string;
+export interface BAgreeData {
+  eventId: string;
+  status: EventStatusValue;
+  judgeResultId: string;
 }
 
-// 发送复盘消息请求
-export interface SendFollowupChatRequest {
+export interface CommitBRequest {
+  summary: string;
+  pointsA: string[];
+  pointsB: string[];
+}
+
+export interface CommitBData {
+  eventId: string;
+  status: EventStatusValue;
+  snapshotBId: string;
+  judgeResultId: string;
+}
+
+export interface JudgeAnalysis {
+  triggers: string[];
+  misunderstandings: string[];
+  adviceForA: string[];
+  adviceForB: string[];
+}
+
+export interface JudgeResultData {
+  judgeResultId: string;
+  eventId: string;
+  status: EventStatusValue;
+  objectiveSummary: string;
+  analysis: JudgeAnalysis;
+  createdAt: string;
+}
+
+export interface FollowupRequest {
   message: string;
+}
+
+export interface FollowupContextMeta {
+  recentMessages: number;
+  snapshots: number;
+  judgeResults: number;
+}
+
+export interface FollowupResponse {
+  reply: string;
+  contextMeta: FollowupContextMeta;
+}
+
+export interface CurrentEventSession {
+  eventId: string;
+  title: string;
+  status: EventStatusValue;
+  snapshotAId?: string;
+  judgeResultId?: string;
 }

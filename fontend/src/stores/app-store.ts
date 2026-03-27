@@ -1,0 +1,45 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { DEFAULT_RELATIONSHIP_ID } from '@/lib/constants';
+import type { CurrentEventSession } from '@/types/event';
+
+type AppState = {
+  relationshipId: string;
+  currentEvent: CurrentEventSession | null;
+  homeOverlayOpen: boolean;
+  calendarExpanded: boolean;
+  setRelationshipId: (relationshipId: string) => void;
+  setCurrentEvent: (currentEvent: CurrentEventSession | null) => void;
+  patchCurrentEvent: (patch: Partial<CurrentEventSession>) => void;
+  clearCurrentEvent: () => void;
+  setHomeOverlayOpen: (open: boolean) => void;
+  setCalendarExpanded: (expanded: boolean) => void;
+};
+
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      relationshipId: DEFAULT_RELATIONSHIP_ID,
+      currentEvent: null,
+      homeOverlayOpen: false,
+      calendarExpanded: false,
+      setRelationshipId: (relationshipId) => set({ relationshipId }),
+      setCurrentEvent: (currentEvent) => set({ currentEvent }),
+      patchCurrentEvent: (patch) =>
+        set((state) => ({
+          currentEvent: state.currentEvent ? { ...state.currentEvent, ...patch } : null,
+        })),
+      clearCurrentEvent: () => set({ currentEvent: null }),
+      setHomeOverlayOpen: (homeOverlayOpen) => set({ homeOverlayOpen }),
+      setCalendarExpanded: (calendarExpanded) => set({ calendarExpanded }),
+    }),
+    {
+      name: 'love-mediator-app',
+      partialize: (state) => ({
+        relationshipId: state.relationshipId,
+        currentEvent: state.currentEvent,
+        calendarExpanded: state.calendarExpanded,
+      }),
+    },
+  ),
+);

@@ -1,23 +1,21 @@
-// 小精灵传话请求
 export interface RelayMessageRequest {
+  eventId: string;
   targetUserId: string;
-  originalMessage: string;
+  rawMessage: string;
 }
 
-// 小精灵传话响应
 export interface RelayMessageResponse {
-  relayedMessage: string;
-  tone: string;
+  messageId: string;
+  delivered: boolean;
+  finalMessage: string;
 }
 
-// 过激语言检测请求
 export interface ModerateMessageRequest {
-  message: string;
+  rawMessage: string;
 }
 
-// 过激语言检测响应
 export interface ModerateMessageResponse {
   blocked: boolean;
-  riskLevel: 'low' | 'medium' | 'high';
-  suggestedMessage?: string;
+  riskLevel: string;
+  suggestedMessage: string | null;
 }

@@ -27,6 +27,7 @@ build/
 
 # Node / frontend
 node_modules/
+.pnpm-store/
 
 # IDE / editor
 .vscode/

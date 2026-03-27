@@ -1,36 +1,35 @@
-// 复盘记录
-export interface Review {
-  id: string;
+export interface CalendarDayCount {
+  date: string;
+  count: number;
+}
+
+export interface CalendarMonthData {
+  month: string;
+  days: CalendarDayCount[];
+}
+
+export interface ReviewListItem {
+  reviewId: string;
   eventId: string;
-  relationshipId: string;
-  title: string;
-  summary: string;
-  aResponsibility: number;
-  bResponsibility: number;
-  tags: string[];
-  isShared: boolean;
+  title: string | null;
+  updatedAt: string;
+}
+
+export interface ReviewDetail {
+  reviewId: string;
+  eventId: string;
+  content: string;
+  source: string;
   createdAt: string;
   updatedAt: string;
 }
 
-// 日历日期项
-export interface CalendarDay {
-  date: string;
-  hasReviews: boolean;
-  reviewCount: number;
-}
-
-// 日历月份数据
-export interface CalendarMonth {
-  year: number;
-  month: number;
-  days: CalendarDay[];
-}
-
-// 更新复盘请求
 export interface UpdateReviewRequest {
-  title?: string;
-  summary?: string;
-  tags?: string[];
-  isShared?: boolean;
+  content: string;
+}
+
+export interface ReviewUpdateResponse {
+  reviewId: string;
+  updatedAt: string;
+  updatedBy: string;
 }

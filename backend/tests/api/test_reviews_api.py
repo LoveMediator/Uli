@@ -43,11 +43,16 @@ def test_get_review_success(client):
     event = SimpleNamespace(public_id="ev_1")
 
     with patch("app.services.review_service.get_review", return_value=review):
-        # Mock the inline Event query in the route handler
-        with patch("app.api.v1.reviews.select") as mock_select:
-            mock_db_result = MagicMock()
-            mock_db_result.scalar_one_or_none.return_value = event
-            # The db.execute().scalar_one_or_none() chain
+        mock_db_result = MagicMock()
+        mock_db_result.scalar_one_or_none.return_value = event
+        mock_db = MagicMock()
+        mock_db.execute.return_value = mock_db_result
+
+        def _override_db():
+            yield mock_db
+
+        client.app.dependency_overrides[get_db] = _override_db
+        with patch("app.api.v1.reviews.select"):
             r = client.get("/api/v1/reviews/rv_1")
 
     assert r.status_code == 200

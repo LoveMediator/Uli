@@ -1,31 +1,27 @@
-import { ErrorCode } from '../types/api';
+import { ApiClientError, ErrorCode } from '@/types/api';
 
-// 错误消息映射
-const ERROR_MESSAGES: Record<number, string> = {
-  [ErrorCode.PARAM_INVALID]: '参数校验失败',
-  [ErrorCode.RESOURCE_NOT_FOUND]: '资源不存在',
-  [ErrorCode.STATE_NOT_ALLOWED]: '当前状态不允许该操作',
-  [ErrorCode.AUTH_FAILED]: '认证失败，请重新登录',
-  [ErrorCode.PERMISSION_DENIED]: '无权限访问该资源',
-  [ErrorCode.ACCOUNT_LOCKED]: '账号已被锁定',
-  [ErrorCode.RATE_LIMITED]: '请求过于频繁，请稍后再试',
-  [ErrorCode.USERNAME_EXISTS]: '用户名已存在',
-  [ErrorCode.SNAPSHOT_FROZEN]: '快照已冻结，无法修改',
-  [ErrorCode.EVENT_NOT_READY]: '事件尚未满足分析前置条件',
-  [ErrorCode.INTERNAL_ERROR]: '系统内部错误，请稍后重试',
+const errorMessages: Record<number, string> = {
+  [ErrorCode.paramInvalid]: '参数不合法，请检查输入内容。',
+  [ErrorCode.resourceNotFound]: '目标资源不存在或已失效。',
+  [ErrorCode.stateNotAllowed]: '当前状态下暂时不能执行这个操作。',
+  [ErrorCode.authFailed]: '登录状态已失效，请重新登录。',
+  [ErrorCode.permissionDenied]: '你没有权限访问这项内容。',
+  [ErrorCode.accountLocked]: '账号已被锁定，请稍后再试。',
+  [ErrorCode.rateLimited]: '请求过于频繁，请稍后再试。',
+  [ErrorCode.usernameExists]: '用户名已经存在，请换一个试试。',
+  [ErrorCode.snapshotFrozen]: '快照已经冻结，不能再次修改。',
+  [ErrorCode.eventNotReady]: '事件还没到可以分析的阶段。',
+  [ErrorCode.internalError]: '服务暂时开小差了，请稍后重试。',
 };
 
-// 获取错误消息
-export const getErrorMessage = (code: number, defaultMessage?: string): string => {
-  return ERROR_MESSAGES[code] || defaultMessage || '未知错误';
-};
+export function getErrorMessage(error: unknown, fallback = '操作失败，请稍后重试。') {
+  if (error instanceof ApiClientError) {
+    return errorMessages[error.code] ?? error.message ?? fallback;
+  }
 
-// 判断是否为认证错误
-export const isAuthError = (code: number): boolean => {
-  return code === ErrorCode.AUTH_FAILED || code === ErrorCode.ACCOUNT_LOCKED;
-};
+  if (error instanceof Error) {
+    return error.message || fallback;
+  }
 
-// 判断是否需要重新登录
-export const shouldRelogin = (code: number): boolean => {
-  return code === ErrorCode.AUTH_FAILED;
-};
+  return fallback;
+}

@@ -1,6 +1,5 @@
-// API模块统一导出
-export * from './auth';
-export * from './events';
-export * from './calendar';
-export * from './elf';
-export { default as apiClient, setTokens, getAccessToken, clearTokens } from './client';
+export * as authApi from './auth';
+export * as calendarApi from './calendar';
+export * as elfApi from './elf';
+export * as eventsApi from './events';
+export * from './client';
