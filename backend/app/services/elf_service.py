@@ -77,9 +77,9 @@ def relay_message(
 
     logger.info("Elf 代转达成功 event=%s from=%s to=%s", event.public_id, user_id, target_user.public_id)
     return ElfRelayResponse(
-        message_id=elf_msg.public_id,
+        messageId=elf_msg.public_id,
         delivered=elf_msg.delivered,
-        final_message=elf_msg.final_message,
+        finalMessage=elf_msg.final_message,
     )
 
 
@@ -124,6 +124,6 @@ def moderate_message(
 
     return ModerateResponse(
         blocked=blocked,
-        risk_level=risk_level,
-        suggested_message=suggested_message,
+        riskLevel=risk_level,
+        suggestedMessage=suggested_message,
     )

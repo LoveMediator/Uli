@@ -14,8 +14,12 @@ servers:
 tags:
   - name: auth
     description: Authentication and session management
+  - name: relationships
+    description: Couple relationship management
   - name: events
     description: Event mediation flow
+  - name: analysis-sessions
+    description: Private analysis session flow
   - name: calendar
     description: Calendar and review listing
   - name: reviews
@@ -114,11 +118,121 @@ paths:
         default:
           $ref: '#/components/responses/ErrorResponse'
 
+  /relationships:
+    get:
+      tags: [relationships]
+      summary: List active relationships for current user
+      operationId: listRelationships
+      responses:
+        '200':
+          description: Relationship list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationshipListResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /relationships/invite:
+    post:
+      tags: [relationships]
+      summary: Create relationship invite
+      operationId: createRelationshipInvite
+      responses:
+        '200':
+          description: Relationship invite created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationshipInviteResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /relationships/accept:
+    post:
+      tags: [relationships]
+      summary: Accept relationship invite
+      operationId: acceptRelationshipInvite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelationshipAcceptRequest'
+      responses:
+        '200':
+          description: Relationship accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationshipAcceptResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /relationships/{relationshipId}/analysis-sessions/a:
+    post:
+      tags: [relationships]
+      summary: Start or resume A private analysis session
+      operationId: startAAnalysisSession
+      parameters:
+        - $ref: '#/components/parameters/RelationshipId'
+      responses:
+        '200':
+          description: Analysis session ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisSessionResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /relationships/{relationshipId}/cancel-request:
+    post:
+      tags: [relationships]
+      summary: Create relationship cancel confirmation token
+      operationId: createRelationshipCancelRequest
+      parameters:
+        - $ref: '#/components/parameters/RelationshipId'
+      responses:
+        '200':
+          description: Cancel confirmation token created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationshipCancelRequestResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /relationships/{relationshipId}/cancel-confirm:
+    post:
+      tags: [relationships]
+      summary: Confirm relationship cancellation and hard-delete related data
+      operationId: confirmRelationshipCancel
+      parameters:
+        - $ref: '#/components/parameters/RelationshipId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelationshipCancelConfirmRequest'
+      responses:
+        '200':
+          description: Relationship deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationshipCancelResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
   /events:
     post:
       tags: [events]
-      summary: Create event
+      summary: Create event (deprecated compatibility route)
       operationId: createEvent
+      deprecated: true
+      description: Legacy route kept for compatibility. The standard flow now creates Event only when A commits a private analysis session.
       requestBody:
         required: true
         content:
@@ -135,34 +249,30 @@ paths:
         default:
           $ref: '#/components/responses/ErrorResponse'
 
-  /events/{eventId}/private-chat/messages:
+  /events/{eventId}/analysis-sessions/b:
     post:
       tags: [events]
-      summary: Send private chat message
-      operationId: sendPrivateChatMessage
+      summary: Start or resume B private analysis session
+      operationId: startBAnalysisSession
       parameters:
         - $ref: '#/components/parameters/EventId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PrivateChatMessageRequest'
       responses:
         '200':
-          description: Private chat response
+          description: Analysis session ready
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PrivateChatMessageResponseEnvelope'
+                $ref: '#/components/schemas/AnalysisSessionResponseEnvelope'
         default:
           $ref: '#/components/responses/ErrorResponse'
 
   /events/{eventId}/commit-a:
     post:
       tags: [events]
-      summary: Freeze Snapshot_A
+      summary: Freeze Snapshot_A (deprecated compatibility route)
       operationId: commitA
+      deprecated: true
+      description: Legacy route kept for compatibility. The standard flow is to commit from an analysis session.
       parameters:
         - $ref: '#/components/parameters/EventId'
       requestBody:
@@ -244,9 +354,10 @@ paths:
   /events/{eventId}/commit-b:
     post:
       tags: [events]
-      summary: Submit Snapshot_B and trigger judgment
+      summary: Submit Snapshot_B and trigger judgment (deprecated compatibility route)
       operationId: commitB
-      description: B must be authenticated before calling this endpoint.
+      deprecated: true
+      description: Legacy route kept for compatibility. The standard flow is to commit from an analysis session.
       parameters:
         - $ref: '#/components/parameters/EventId'
       requestBody:
@@ -304,6 +415,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FollowupMessageResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /analysis-sessions/{sessionId}/messages:
+    post:
+      tags: [analysis-sessions]
+      summary: Send message inside private analysis session
+      operationId: sendAnalysisSessionMessage
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisSessionMessageRequest'
+      responses:
+        '200':
+          description: Assistant reply generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisSessionMessageResponseEnvelope'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /analysis-sessions/{sessionId}/commit:
+    post:
+      tags: [analysis-sessions]
+      summary: Commit private analysis session into formal event data
+      operationId: commitAnalysisSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Commit completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisSessionCommitResponseEnvelope'
         default:
           $ref: '#/components/responses/ErrorResponse'
 
@@ -450,6 +601,22 @@ components:
       schema:
         type: string
         example: ev_001
+    RelationshipId:
+      in: path
+      name: relationshipId
+      required: true
+      description: Relationship public ID
+      schema:
+        type: string
+        example: rel_001
+    SessionId:
+      in: path
+      name: sessionId
+      required: true
+      description: Analysis session ID
+      schema:
+        type: string
+        example: as_001
     ReviewId:
       in: path
       name: reviewId
@@ -632,6 +799,238 @@ components:
             data:
               $ref: '#/components/schemas/LogoutData'
 
+    RelationshipCurrentEvent:
+      type: object
+      required: [eventId, status, pendingAction]
+      properties:
+        eventId:
+          type: string
+          example: ev_001
+        status:
+          $ref: '#/components/schemas/EventStatus'
+        pendingAction:
+          type: string
+          example: respond
+        title:
+          type: string
+          nullable: true
+          example: null
+
+    RelationshipSummary:
+      type: object
+      required: [relationshipId, partnerUserId, partnerUsername, status]
+      properties:
+        relationshipId:
+          type: string
+          example: rel_001
+        partnerUserId:
+          type: string
+          example: u_1002
+        partnerUsername:
+          type: string
+          example: bob_01
+        status:
+          type: string
+          enum: [active]
+        currentEvent:
+          allOf:
+            - $ref: '#/components/schemas/RelationshipCurrentEvent'
+          nullable: true
+
+    RelationshipListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RelationshipSummary'
+
+    RelationshipListResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RelationshipListData'
+
+    RelationshipInviteData:
+      type: object
+      required: [inviteToken, inviteUrl, expiresAt]
+      properties:
+        inviteToken:
+          type: string
+          example: invite_token_xxx
+        inviteUrl:
+          type: string
+          example: /relationship-invite?token=invite_token_xxx
+        expiresAt:
+          type: string
+          format: date-time
+          example: '2026-04-03T08:21:13Z'
+
+    RelationshipInviteResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RelationshipInviteData'
+
+    RelationshipAcceptRequest:
+      type: object
+      required: [inviteToken]
+      properties:
+        inviteToken:
+          type: string
+          example: invite_token_xxx
+
+    RelationshipAcceptData:
+      allOf:
+        - $ref: '#/components/schemas/RelationshipSummary'
+
+    RelationshipAcceptResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RelationshipAcceptData'
+
+    RelationshipCancelConfirmRequest:
+      type: object
+      required: [cancelToken]
+      properties:
+        cancelToken:
+          type: string
+          example: cancel_token_xxx
+
+    RelationshipCancelRequestData:
+      type: object
+      required: [cancelToken, cancelUrl, expiresAt]
+      properties:
+        cancelToken:
+          type: string
+          example: cancel_token_xxx
+        cancelUrl:
+          type: string
+          example: /relationship-cancel?token=cancel_token_xxx
+        expiresAt:
+          type: string
+          format: date-time
+          example: '2026-04-03T08:21:13Z'
+
+    RelationshipCancelRequestResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RelationshipCancelRequestData'
+
+    RelationshipDeleteCounts:
+      type: object
+      required:
+        [privateMessages, privateSessions, followupMessages, eventStateLogs, aiCallLogs, elfMessages, judgeResults, eventSnapshots, calendarEntries, reviewVersions, reviews, events, relationships]
+      properties:
+        privateMessages:
+          type: integer
+        privateSessions:
+          type: integer
+        followupMessages:
+          type: integer
+        eventStateLogs:
+          type: integer
+        aiCallLogs:
+          type: integer
+        elfMessages:
+          type: integer
+        judgeResults:
+          type: integer
+        eventSnapshots:
+          type: integer
+        calendarEntries:
+          type: integer
+        reviewVersions:
+          type: integer
+        reviews:
+          type: integer
+        events:
+          type: integer
+        relationships:
+          type: integer
+
+    RelationshipCancelData:
+      type: object
+      required: [relationshipId, deletedCounts, deletedAt]
+      properties:
+        relationshipId:
+          type: string
+          example: rel_001
+        deletedCounts:
+          $ref: '#/components/schemas/RelationshipDeleteCounts'
+        deletedAt:
+          type: string
+          format: date-time
+          example: '2026-03-27T10:00:00Z'
+
+    RelationshipCancelResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RelationshipCancelData'
+
+    AnalysisSessionMessagePayload:
+      type: object
+      required: [role, content, createdAt]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-03-27T10:00:00Z'
+
+    AnalysisSessionData:
+      type: object
+      required: [sessionId, phase, expiresAt, messages]
+      properties:
+        sessionId:
+          type: string
+          example: as_001
+        phase:
+          type: string
+          enum: [a, b]
+        relationshipId:
+          type: string
+          nullable: true
+          example: rel_001
+        eventId:
+          type: string
+          nullable: true
+          example: ev_001
+        expiresAt:
+          type: string
+          format: date-time
+          example: '2026-03-28T10:00:00Z'
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalysisSessionMessagePayload'
+
+    AnalysisSessionResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AnalysisSessionData'
+
     CreateEventRequest:
       type: object
       required: [title, relationshipId]
@@ -661,7 +1060,7 @@ components:
             data:
               $ref: '#/components/schemas/CreateEventData'
 
-    PrivateChatMessageRequest:
+    AnalysisSessionMessageRequest:
       type: object
       required: [message]
       properties:
@@ -669,7 +1068,7 @@ components:
           type: string
           example: 我们昨天因为家务吵架...
 
-    PrivateChatMessageData:
+    AnalysisSessionMessageData:
       type: object
       required: [reply, sessionId]
       properties:
@@ -678,15 +1077,48 @@ components:
           example: 我先帮你整理事实和双方观点...
         sessionId:
           type: string
-          example: ps_001
+          example: as_001
 
-    PrivateChatMessageResponseEnvelope:
+    AnalysisSessionMessageResponseEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'
         - type: object
           properties:
             data:
-              $ref: '#/components/schemas/PrivateChatMessageData'
+              $ref: '#/components/schemas/AnalysisSessionMessageData'
+
+    AnalysisSessionCommitData:
+      type: object
+      required: [sessionId, eventId, status]
+      properties:
+        sessionId:
+          type: string
+          example: as_001
+        eventId:
+          type: string
+          example: ev_001
+        status:
+          $ref: '#/components/schemas/EventStatus'
+        snapshotAId:
+          type: string
+          nullable: true
+          example: sa_001
+        snapshotBId:
+          type: string
+          nullable: true
+          example: sb_001
+        judgeResultId:
+          type: string
+          nullable: true
+          example: jr_001
+
+    AnalysisSessionCommitResponseEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AnalysisSessionCommitData'
 
     CommitARequest:
       type: object

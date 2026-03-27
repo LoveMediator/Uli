@@ -126,8 +126,8 @@ def test_followup_chat_success(client):
     from app.schemas.followup import FollowupContextMeta, FollowupResponse
     mock_resp = FollowupResponse(
         reply="mock reply",
-        context_meta=FollowupContextMeta(
-            recent_messages=2, snapshots=1, judge_results=1,
+        contextMeta=FollowupContextMeta(
+            recentMessages=2, snapshots=1, judgeResults=1,
         ),
     )
     with patch("app.services.followup_service.followup_chat", return_value=mock_resp):

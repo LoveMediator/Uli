@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -32,4 +34,4 @@ class JudgeResult(Base):
     # 输出token数
     output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 创建时间
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

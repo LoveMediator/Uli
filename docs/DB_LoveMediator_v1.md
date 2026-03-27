@@ -149,6 +149,10 @@
 
 ### 5.3 私有会话与冻结快照
 
+当前后端实现说明：
+- 私有分析主链路当前使用 Redis 临时缓存作为真相源。
+- `private_sessions` / `private_messages` 在当前版本保留为候选持久化表，不是正式主流程的必经落库路径。
+
 #### 5.3.1 private_sessions
 用途：A/B 私有分析会话。
 
@@ -420,13 +424,15 @@
 - `POST /auth/login` -> `users`, `auth_login_logs`, `refresh_tokens`
 - `POST /auth/refresh` -> `refresh_tokens`
 - `POST /auth/logout` -> `refresh_tokens`
-- `POST /events` -> `events`
-- `POST /events/{id}/private-chat/messages` -> `private_sessions`, `private_messages`, `ai_call_logs`（⚠ 未实现）
-- `POST /events/{id}/commit-a` -> `event_snapshots`, `events`, `event_state_logs`
+- `POST /relationships/{relationshipId}/analysis-sessions/a` -> Redis analysis session cache, `ai_call_logs`（发送消息时）
+- `POST /analysis-sessions/{sessionId}/messages` -> Redis analysis session cache, `ai_call_logs`
+- `POST /analysis-sessions/{sessionId}/commit` -> `events`, `event_snapshots`, `event_state_logs`, `judge_results`, `reviews`, `calendar_entries`（按 A/B 阶段分支）
+- `POST /events` -> `events`（兼容老路径，已标记为 deprecated）
+- `POST /events/{id}/commit-a` -> `event_snapshots`, `events`, `event_state_logs`（兼容老路径，已标记为 deprecated）
 - `GET /events/{id}/invite` -> `events`（只读，无需鉴权）
 - `GET /events/{id}/snapshot-a` -> `event_snapshots`（只读）
 - `POST /events/{id}/b-agree` -> `judge_results`, `events`, `event_state_logs`, `ai_call_logs`, `reviews`, `calendar_entries`
-- `POST /events/{id}/commit-b` -> `event_snapshots`, `judge_results`, `events`, `event_state_logs`, `ai_call_logs`, `reviews`, `calendar_entries`
+- `POST /events/{id}/commit-b` -> `event_snapshots`, `judge_results`, `events`, `event_state_logs`, `ai_call_logs`, `reviews`, `calendar_entries`（兼容老路径，已标记为 deprecated）
 - `GET /events/{id}/judge-result` -> `judge_results`（只读）
 - `POST /events/{id}/followup-chat/messages` -> `followup_messages`, `ai_call_logs`
 - `GET /calendar` -> `calendar_entries`

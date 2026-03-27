@@ -40,6 +40,9 @@ def create_event(
     rel = get_relationship_by_public_id(db, relationship_public_id)
     if user_id not in (rel.user_a_id, rel.user_b_id):
         raise AppError("无权在该关系中创建事件", code=FORBIDDEN)
+    open_event = event_repo.get_open_event_for_relationship(db, rel.id)
+    if open_event is not None:
+        raise AppError("当前关系已有未完成事件，请先处理完成后再创建", code=INVALID_STATE)
 
     event = event_repo.create_event(
         db,
@@ -190,6 +193,12 @@ def _execute_judge_inner(
     db.commit()
     db.refresh(event)
     db.refresh(judge_result)
+    try:
+        from app.services.analysis_session_store import get_analysis_session_store
+
+        get_analysis_session_store().clear_sessions_for_relationship(rel.public_id)
+    except Exception:  # noqa: BLE001 - cache cleanup must not break committed result
+        logger.warning("failed to clear analysis sessions for relationship=%s", rel.public_id)
     logger.info("裁判完成 event=%s judge=%s operator=%s", event.public_id, judge_result.public_id, operator_user_id)
     return judge_result
 
@@ -271,3 +280,104 @@ def get_judge_result(
     if judge_result is None:
         raise AppError("裁判结果尚未生成", code=PREREQ_NOT_MET)
     return event, judge_result
+
+from app.core.config import settings
+
+
+def _execute_judge_inner(
+    db: Session,
+    event: Event,
+    rel: Relationship,
+    snapshot_a: EventSnapshot,
+    snapshot_b: EventSnapshot | None,
+    operator_user_id: int,
+) -> JudgeResult:
+    judge_result = judge_service.generate_judge_result(
+        db,
+        event_id=event.id,
+        snapshot_a=snapshot_a,
+        snapshot_b=snapshot_b,
+    )
+
+    old_status = event.status
+    event.status = EventStatus.JUDGED
+    event.judged_at = datetime.now(tz=UTC)
+    db.flush()
+
+    audit_repo.create_event_state_log(
+        db,
+        event_id=event.id,
+        from_status=old_status,
+        to_status=EventStatus.JUDGED,
+        action="judge",
+        operator_user_id=operator_user_id,
+    )
+
+    audit_repo.create_ai_call_log(
+        db,
+        event_id=event.id,
+        scene="judge",
+        model_name=judge_result.model_name or settings.kimi_text_model,
+        success=True,
+        input_tokens=judge_result.input_tokens or 0,
+        output_tokens=judge_result.output_tokens or 0,
+    )
+
+    try:
+        review_ai_result = review_service.generate_review_content_from_judge(
+            snapshot_a=snapshot_a,
+            snapshot_b=snapshot_b,
+            judge_result=judge_result,
+        )
+    except AppError as exc:
+        logger.warning("review generation failed for event=%s: %s", event.public_id, exc.message)
+        audit_repo.create_ai_call_log(
+            db,
+            event_id=event.id,
+            scene="review",
+            model_name=settings.kimi_text_model,
+            success=False,
+            error_code=str(exc.code),
+        )
+        review_content = review_service.build_fallback_review_content(judge_result)
+    except Exception as exc:  # noqa: BLE001 - review fallback should not block judge
+        logger.warning("unexpected review generation failure for event=%s: %s", event.public_id, exc)
+        audit_repo.create_ai_call_log(
+            db,
+            event_id=event.id,
+            scene="review",
+            model_name=settings.kimi_text_model,
+            success=False,
+            error_code="unexpected",
+        )
+        review_content = review_service.build_fallback_review_content(judge_result)
+    else:
+        review_content = str(review_ai_result["content"])
+        audit_repo.create_ai_call_log(
+            db,
+            event_id=event.id,
+            scene="review",
+            model_name=str(review_ai_result["model_name"]),
+            success=True,
+            input_tokens=int(review_ai_result["input_tokens"]),
+            output_tokens=int(review_ai_result["output_tokens"]),
+        )
+
+    review_service.create_review_from_judge(
+        db,
+        event_id=event.id,
+        relationship_id=rel.id,
+        content=review_content,
+    )
+
+    db.commit()
+    db.refresh(event)
+    db.refresh(judge_result)
+    try:
+        from app.services.analysis_session_store import get_analysis_session_store
+
+        get_analysis_session_store().clear_sessions_for_relationship(rel.public_id)
+    except Exception:  # noqa: BLE001 - cache cleanup must not break committed result
+        logger.warning("failed to clear analysis sessions for relationship=%s", rel.public_id)
+    logger.info("judge completed event=%s judge=%s operator=%s", event.public_id, judge_result.public_id, operator_user_id)
+    return judge_result

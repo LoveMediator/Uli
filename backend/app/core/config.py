@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     debug: bool = False
     database_url: str = "postgresql+psycopg://user:pass@localhost:5432/app"
     redis_url: str = "redis://localhost:6379/0"
+    analysis_session_ttl_seconds: int = 86400
+    max_upload_size_mb: int = 5
+    kimi_api_key: str = ""
+    kimi_base_url: str = "https://api.moonshot.cn/v1"
+    kimi_text_model: str = "kimi-k2.5"
+    kimi_vision_model: str = "moonshot-v1-vision-preview"
     # 逗号分隔的前端源（如 http://localhost:5173）；空字符串表示不启用 CORS 中间件
     cors_origins: str = ""
     db_connect_timeout_seconds: int = 15

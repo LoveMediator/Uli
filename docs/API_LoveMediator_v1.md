@@ -165,11 +165,17 @@
 
 ## 5. 大模块二：AI 调解 API（MED）
 
-### 5.1 私有会话发消息（MED-FR-001）⚠ 未实现
-- 方法与路径：`POST /api/v1/events/{eventId}/private-chat/messages`
-- 鉴权：是（仅事件参与者本人）
-- 说明：仅写入私有会话，不写共享快照。
-- **实现状态**：模型已预留（`models/session.py` 中 `PrivateSession` / `PrivateMessage`），路由与服务层尚未开发。当前 MVP 中 commit-a 直接接收 `confirmText` 作为快照内容。
+### 5.1 A 开启私有分析会话（MED-FR-001）
+- 方法与路径：`POST /api/v1/relationships/{relationshipId}/analysis-sessions/a`
+- 鉴权：是（仅关系参与者本人）
+- 说明：创建或恢复 A 的临时私有分析会话；此阶段不创建 `Event`，不写共享快照。
+- 成功响应中的 `data` 至少包含：`sessionId`、`phase='a'`、`relationshipId`、`expiresAt`、`messages`
+- 业务错误：`1002` `2002` `1003` `5000`
+
+### 5.2 私有分析会话发消息（MED-FR-001）
+- 方法与路径：`POST /api/v1/analysis-sessions/{sessionId}/messages`
+- 鉴权：是（仅会话所属用户）
+- 说明：读取 Redis 临时会话、调用 AI、将本轮 user/assistant 消息回写到缓存；不写共享快照。
 - 请求体：
 ```json
 {
@@ -182,22 +188,23 @@
   "code": 0,
   "message": "ok",
   "data": {
-    "reply": "我先帮你整理事实和双方观点...",
-    "sessionId": "ps_001"
+    "sessionId": "as_001",
+    "reply": "我先帮你把事实和感受拆开。"
   }
 }
 ```
-- 业务错误：`1001` `1002` `2001` `2002` `5000`
+- 业务错误：`1001` `1003` `2001` `2002` `5000`
 
-### 5.2 创建事件
-- 方法与路径：`POST /api/v1/events`
-- 鉴权：是
+### 5.3 确认私有分析并进入正式事件流（MED-FR-002）
+- 方法与路径：`POST /api/v1/analysis-sessions/{sessionId}/commit`
+- 鉴权：是（仅会话所属用户）
+- 说明：
+  - A 会话确认：从当前会话生成结构化事实，事务内创建 `Event + Snapshot_A`，并把状态置为 `waiting_b`
+  - B 会话确认：从当前会话生成 `Snapshot_B`，随后裁判并把状态置为 `judged`
+- 说明：`POST /api/v1/events`、`POST /api/v1/events/{eventId}/commit-a`、`POST /api/v1/events/{eventId}/commit-b` 已降级为兼容旧流程的废弃入口，不再是标准主路径。
 - 请求体：
 ```json
-{
-  "title": "2月争吵",
-  "relationshipId": "rel_001"
-}
+{}
 ```
 - 成功响应：
 ```json
@@ -206,35 +213,11 @@
   "message": "ok",
   "data": {
     "eventId": "ev_001",
-    "status": "draft"
+    "status": "waiting_b"
   }
 }
 ```
-- 业务错误：`1001` `2001` `2002` `5000`
-
-### 5.3 A 确认并冻结 Snapshot_A（MED-FR-002）
-- 方法与路径：`POST /api/v1/events/{eventId}/commit-a`
-- 鉴权：是（仅 A 可执行）
-- 说明：触发 commit/freeze，`status: draft -> waiting_b`。
-- 请求体：
-```json
-{
-  "confirmText": "对，基本是这样"
-}
-```
-- 成功响应：
-```json
-{
-  "code": 0,
-  "message": "ok",
-  "data": {
-    "eventId": "ev_001",
-    "status": "waiting_b",
-    "snapshotAId": "sa_001"
-  }
-}
-```
-- 业务错误：`1003` `2002` `3002` `5000`
+- 业务错误：`1003` `2002` `5000`
 
 ### 5.4 获取邀请页信息（MED-FR-003）
 - 方法与路径：`GET /api/v1/events/{eventId}/invite`
@@ -526,9 +509,9 @@
 - AUTH-FR-002 -> `POST /api/v1/auth/login`
 - AUTH-FR-003 -> 登录接口内限流与锁定策略
 - AUTH-FR-004 -> `POST /api/v1/auth/logout`, `POST /api/v1/auth/refresh`
-- MED-FR-001 -> `POST /api/v1/events/{eventId}/private-chat/messages`
-- MED-FR-002 -> `POST /api/v1/events/{eventId}/commit-a`
-- MED-FR-003 -> `GET /api/v1/events/{eventId}/invite`, `GET /api/v1/events/{eventId}/snapshot-a`, `POST /api/v1/events/{eventId}/b-agree`, `POST /api/v1/events/{eventId}/commit-b`
+- MED-FR-001 -> `POST /api/v1/relationships/{relationshipId}/analysis-sessions/a`, `POST /api/v1/events/{eventId}/analysis-sessions/b`, `POST /api/v1/analysis-sessions/{sessionId}/messages`
+- MED-FR-002 -> `POST /api/v1/analysis-sessions/{sessionId}/commit`
+- MED-FR-003 -> `GET /api/v1/events/{eventId}/invite`, `GET /api/v1/events/{eventId}/snapshot-a`, `POST /api/v1/events/{eventId}/b-agree`, `POST /api/v1/events/{eventId}/analysis-sessions/b`
 - MED-FR-004 -> 裁判生成由 `b-agree/commit-b` 内部触发
 - MED-FR-005 -> `GET /api/v1/events/{eventId}/judge-result`
 - MED-FR-006 -> `POST /api/v1/events/{eventId}/followup-chat/messages`

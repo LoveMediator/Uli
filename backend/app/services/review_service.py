@@ -126,3 +126,76 @@ def create_review_from_judge(
     )
 
     return review
+
+from pydantic import BaseModel, Field
+
+from app.models.judge import JudgeResult
+from app.models.snapshot import EventSnapshot
+from app.services import ai_service
+
+
+class ReviewAiPayload(BaseModel):
+    content: str = Field(min_length=1)
+
+
+def build_fallback_review_content(judge_result: JudgeResult) -> str:
+    trigger_lines = "\n".join(f"- {item}" for item in (judge_result.triggers or []))
+    misunderstanding_lines = "\n".join(
+        f"- {item}" for item in (judge_result.misunderstandings or [])
+    )
+    advice_a_lines = "\n".join(f"- {item}" for item in (judge_result.advice_for_a or []))
+    advice_b_lines = "\n".join(f"- {item}" for item in (judge_result.advice_for_b or []))
+    return (
+        "一、事件回顾\n"
+        f"{judge_result.objective_summary}\n\n"
+        "二、容易重复触发的点\n"
+        f"{trigger_lines or '- 暂无更多信息'}\n\n"
+        "三、可能的误解\n"
+        f"{misunderstanding_lines or '- 暂无更多信息'}\n\n"
+        "四、后续建议\n"
+        "给 A：\n"
+        f"{advice_a_lines or '- 先描述事实，再表达感受'}\n"
+        "给 B：\n"
+        f"{advice_b_lines or '- 先确认感受，再回应立场'}"
+    )
+
+
+def generate_review_content_from_judge(
+    *,
+    snapshot_a: EventSnapshot,
+    snapshot_b: EventSnapshot | None,
+    judge_result: JudgeResult,
+) -> dict[str, str | int]:
+    snapshot_b_text = snapshot_b.summary if snapshot_b is not None else "（B 未提交私有确认，仅有 A 快照）"
+    prompt = (
+        "请根据下面的情侣冲突材料，生成一份面向双方的复盘正文。\n"
+        "要求：\n"
+        "1. 使用中文。\n"
+        "2. 内容分成 3 到 4 个自然段，不要使用 JSON 之外的额外说明。\n"
+        "3. 重点包括：发生了什么、双方各自的感受/需求、有哪些误解、下次可以怎么做。\n"
+        "4. 保持中立，不指责，不说教，不编造事实。\n\n"
+        f"A 快照：{snapshot_a.summary or '（无）'}\n"
+        f"B 快照：{snapshot_b_text}\n"
+        f"客观摘要：{judge_result.objective_summary}\n"
+        f"触发点：{judge_result.triggers or []}\n"
+        f"误解点：{judge_result.misunderstandings or []}\n"
+        f"给 A 的建议：{judge_result.advice_for_a or []}\n"
+        f"给 B 的建议：{judge_result.advice_for_b or []}"
+    )
+    ai_result = ai_service.call_llm_json(
+        prompt=prompt,
+        response_model=ReviewAiPayload,
+        model_name="review-v1",
+        system_prompt=(
+            "你是后端复盘正文生成器。"
+            "你只输出合法 JSON，字段 content 必须是一段可直接展示给用户的复盘正文。"
+        ),
+        temperature=0.35,
+    )
+    data: ReviewAiPayload = ai_result["data"]
+    return {
+        "content": data.content.strip(),
+        "model_name": str(ai_result["model_name"]),
+        "input_tokens": int(ai_result["input_tokens"]),
+        "output_tokens": int(ai_result["output_tokens"]),
+    }

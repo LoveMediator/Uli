@@ -1,7 +1,7 @@
 """Calendar 路由（3 号）。"""
 
 from datetime import date
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Query
 
@@ -22,7 +22,7 @@ def get_month_calendar(
     db: Db,
     month: MonthQuery,
     relationship_id: RelationshipIdQuery,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     year, month_num = int(month[:4]), int(month[5:7])
     rel = get_relationship_by_public_id(db, relationship_id)
     data = calendar_service.get_month_summary(
@@ -37,7 +37,7 @@ def get_day_reviews(
     user: CurrentActiveUser,
     db: Db,
     relationship_id: RelationshipIdQuery,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     rel = get_relationship_by_public_id(db, relationship_id)
     data = calendar_service.get_day_reviews(
         db, user_id=user.id, relationship_id=rel.id, target_date=target_date,

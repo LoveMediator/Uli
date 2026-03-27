@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, Request
 
 from app.api.deps import Db
@@ -26,9 +24,9 @@ router = APIRouter()
 def register(
     body: RegisterRequest,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     user = auth_service.register_user(db, username=body.username, password=body.password)
-    data = RegisterData(user_id=user.id, public_id=user.public_id)
+    data = RegisterData(userId=user.id, publicId=user.public_id)
     return envelope_success(data.model_dump(by_alias=True))
 
 
@@ -37,7 +35,7 @@ def login(
     body: LoginRequest,
     request: Request,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     ip = None
     if request.client is not None:
         ip = request.client.host
@@ -52,11 +50,11 @@ def login(
     )
 
     data = AuthTokensData(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer",
-        user_id=user.id,
-        public_id=user.public_id,
+        accessToken=access_token,
+        refreshToken=refresh_token,
+        tokenType="bearer",
+        userId=user.id,
+        publicId=user.public_id,
     )
     return envelope_success(data.model_dump(by_alias=True))
 
@@ -65,10 +63,10 @@ def login(
 def refresh(
     body: RefreshRequest,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     access_token = auth_service.refresh_access_token(db, refresh_token=body.refresh_token)
     user_id = security.decode_access_token(access_token)
-    data = AccessTokenData(access_token=access_token, token_type="bearer", user_id=user_id)
+    data = AccessTokenData(accessToken=access_token, tokenType="bearer", userId=user_id)
     return envelope_success(data.model_dump(by_alias=True))
 
 
@@ -76,7 +74,7 @@ def refresh(
 def logout(
     body: LogoutRequest,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     revoked = auth_service.logout_refresh_token(db, refresh_token=body.refresh_token)
     data = LogoutData(revoked=revoked)
     return envelope_success(data.model_dump(by_alias=True))

@@ -30,3 +30,15 @@ def create_event(
     db.add(event)
     db.flush()
     return event
+
+
+def get_open_event_for_relationship(db: Session, relationship_id: int) -> Event | None:
+    stmt = (
+        select(Event)
+        .where(
+            Event.relationship_id == relationship_id,
+            Event.status.in_((EventStatus.DRAFT, EventStatus.WAITING_B)),
+        )
+        .order_by(Event.created_at.desc())
+    )
+    return db.execute(stmt).scalars().first()

@@ -1,7 +1,5 @@
 """Reviews 路由（3 号）。"""
 
-from typing import Any
-
 from fastapi import APIRouter
 from sqlalchemy import select
 
@@ -20,7 +18,7 @@ def get_review(
     review_id: PublicId,
     user: CurrentActiveUser,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     review = review_service.get_review(db, user_id=user.id, review_public_id=review_id)
     event = db.execute(
         select(Event).where(Event.id == review.event_id)
@@ -30,12 +28,12 @@ def get_review(
     event_public_id = event.public_id
 
     data = ReviewDetail(
-        review_id=review.public_id,
-        event_id=event_public_id,
+        reviewId=review.public_id,
+        eventId=event_public_id,
         content=review.content,
         source=review.source,
-        created_at=review.created_at,
-        updated_at=review.updated_at,
+        createdAt=review.created_at,
+        updatedAt=review.updated_at,
     )
     return envelope_success(data.model_dump(by_alias=True))
 
@@ -46,13 +44,13 @@ def update_review(
     body: ReviewUpdateRequest,
     user: CurrentActiveUser,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     review = review_service.update_review(
         db, user_id=user.id, review_public_id=review_id, content=body.content,
     )
     data = ReviewUpdateResponse(
-        review_id=review.public_id,
-        updated_at=review.updated_at,
-        updated_by=user.public_id,
+        reviewId=review.public_id,
+        updatedAt=review.updated_at,
+        updatedBy=user.public_id,
     )
     return envelope_success(data.model_dump(by_alias=True))

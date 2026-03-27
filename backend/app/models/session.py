@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -19,9 +21,9 @@ class PrivateSession(Base):
     # 是否活跃
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     # 创建时间
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     # 更新时间
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class PrivateMessage(Base):
@@ -38,4 +40,4 @@ class PrivateMessage(Base):
     # token 数量（可选）
     token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 创建时间
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

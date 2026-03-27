@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import Boolean, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -26,9 +28,9 @@ class ElfMessage(Base):
     # 是否送达
     delivered: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # 送达时间
-    delivered_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # 创建时间
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class ModerationLog(Base):
@@ -47,4 +49,4 @@ class ModerationLog(Base):
     # 建议替换文本
     suggested_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     # 创建时间
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

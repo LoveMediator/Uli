@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -22,12 +24,12 @@ class Event(Base):
     # 事件状态
     status: Mapped[EventStatus] = mapped_column(SAEnum(EventStatus, name="event_status"), default=EventStatus.DRAFT, nullable=False)
     # 裁判完成时间
-    judged_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    judged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # 复盘完成时间
-    reviewed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # 关闭时间
-    closed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # 创建时间
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     # 更新时间
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

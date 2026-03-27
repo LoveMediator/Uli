@@ -28,6 +28,7 @@ def create_snapshot(
     summary: str,
     points_a: list[str],
     points_b: list[str],
+    raw_payload: dict | None = None,
     confirmed_by_user_id: int,
 ) -> EventSnapshot:
     snapshot = EventSnapshot(
@@ -37,6 +38,7 @@ def create_snapshot(
         summary=summary,
         points_a=points_a,
         points_b=points_b,
+        raw_payload=raw_payload,
         confirmed_by_user_id=confirmed_by_user_id,
         is_frozen=True,
     )

@@ -1,7 +1,5 @@
 """Events 主链路由（2 号 + followup 串联点）。"""
 
-from typing import Any
-
 from fastapi import APIRouter
 
 from app.api.deps import CurrentActiveUser, Db, PublicId
@@ -21,17 +19,18 @@ from app.schemas.event import (
 )
 from app.schemas.followup import FollowupRequest
 from app.schemas.judge import JudgeAnalysis, JudgeResultData
+from app.services import analysis_session_chat_service as analysis_session_service
 from app.services import event_service, followup_service
 
 router = APIRouter()
 
 
-@router.post("", response_model=ApiEnvelope)
+@router.post("", response_model=ApiEnvelope, deprecated=True)
 def create_event(
     body: EventCreateRequest,
     user: CurrentActiveUser,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     event = event_service.create_event(
         db,
         user_id=user.id,
@@ -39,19 +38,19 @@ def create_event(
         relationship_public_id=body.relationship_id,
     )
     data = EventCreateData(
-        event_id=event.public_id,
+        eventId=event.public_id,
         status=event.status.value,
     )
     return envelope_success(data.model_dump(by_alias=True))
 
 
-@router.post("/{event_id}/commit-a", response_model=ApiEnvelope)
+@router.post("/{event_id}/commit-a", response_model=ApiEnvelope, deprecated=True)
 def commit_a(
     event_id: PublicId,
     body: CommitARequest,
     user: CurrentActiveUser,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     event, snapshot = event_service.commit_a(
         db,
         user_id=user.id,
@@ -59,9 +58,23 @@ def commit_a(
         confirm_text=body.confirm_text,
     )
     data = CommitAData(
-        event_id=event.public_id,
+        eventId=event.public_id,
         status=event.status.value,
-        snapshot_a_id=snapshot.public_id,
+        snapshotAId=snapshot.public_id,
+    )
+    return envelope_success(data.model_dump(by_alias=True))
+
+
+@router.post("/{event_id}/analysis-sessions/b", response_model=ApiEnvelope)
+def start_b_analysis_session(
+    event_id: PublicId,
+    user: CurrentActiveUser,
+    db: Db,
+) -> ApiEnvelope:
+    data = analysis_session_service.start_b_analysis_session(
+        db,
+        current_user=user,
+        event_public_id=event_id,
     )
     return envelope_success(data.model_dump(by_alias=True))
 
@@ -70,14 +83,14 @@ def commit_a(
 def get_invite(
     event_id: PublicId,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     event = event_service.get_invite(db, event_public_id=event_id)
     data = InviteData(
-        event_id=event.public_id,
+        eventId=event.public_id,
         status=event.status.value,
         title=event.title,
-        invite_message="对方邀请你参与本次事件，请先登录后继续。",
-        requires_auth=True,
+        inviteMessage="对方邀请你参与本次事件，请先登录后继续。",
+        requiresAuth=True,
     )
     return envelope_success(data.model_dump(by_alias=True))
 
@@ -87,17 +100,17 @@ def get_snapshot_a(
     event_id: PublicId,
     user: CurrentActiveUser,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     event, snapshot = event_service.get_snapshot_a(
         db, user_id=user.id, event_public_id=event_id,
     )
     data = SnapshotAData(
-        event_id=event.public_id,
+        eventId=event.public_id,
         status=event.status.value,
-        snapshot_a=SnapshotPayload(
+        snapshotA=SnapshotPayload(
             summary=snapshot.summary,
-            points_a=snapshot.points_a,
-            points_b=snapshot.points_b,
+            pointsA=snapshot.points_a,
+            pointsB=snapshot.points_b,
         ),
     )
     return envelope_success(data.model_dump(by_alias=True))
@@ -109,25 +122,25 @@ def b_agree(
     body: BAgreeRequest,
     user: CurrentActiveUser,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     event, judge_result = event_service.b_agree(
         db, user_id=user.id, event_public_id=event_id, agree=body.agree,
     )
     data = BAgreeData(
-        event_id=event.public_id,
+        eventId=event.public_id,
         status=event.status.value,
-        judge_result_id=judge_result.public_id,
+        judgeResultId=judge_result.public_id,
     )
     return envelope_success(data.model_dump(by_alias=True))
 
 
-@router.post("/{event_id}/commit-b", response_model=ApiEnvelope)
+@router.post("/{event_id}/commit-b", response_model=ApiEnvelope, deprecated=True)
 def commit_b(
     event_id: PublicId,
     body: CommitBRequest,
     user: CurrentActiveUser,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     event, snapshot_b, judge_result = event_service.commit_b(
         db,
         user_id=user.id,
@@ -137,10 +150,10 @@ def commit_b(
         points_b=body.points_b,
     )
     data = CommitBData(
-        event_id=event.public_id,
+        eventId=event.public_id,
         status=event.status.value,
-        snapshot_b_id=snapshot_b.public_id,
-        judge_result_id=judge_result.public_id,
+        snapshotBId=snapshot_b.public_id,
+        judgeResultId=judge_result.public_id,
     )
     return envelope_success(data.model_dump(by_alias=True))
 
@@ -150,22 +163,22 @@ def get_judge_result(
     event_id: PublicId,
     user: CurrentActiveUser,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     event, judge = event_service.get_judge_result(
         db, user_id=user.id, event_public_id=event_id,
     )
     data = JudgeResultData(
-        judge_result_id=judge.public_id,
-        event_id=event.public_id,
+        judgeResultId=judge.public_id,
+        eventId=event.public_id,
         status=event.status.value,
-        objective_summary=judge.objective_summary,
+        objectiveSummary=judge.objective_summary,
         analysis=JudgeAnalysis(
             triggers=judge.triggers,
             misunderstandings=judge.misunderstandings,
-            advice_for_a=judge.advice_for_a,
-            advice_for_b=judge.advice_for_b,
+            adviceForA=judge.advice_for_a,
+            adviceForB=judge.advice_for_b,
         ),
-        created_at=judge.created_at,
+        createdAt=judge.created_at,
     )
     return envelope_success(data.model_dump(by_alias=True))
 
@@ -176,7 +189,7 @@ def followup_chat(
     body: FollowupRequest,
     user: CurrentActiveUser,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     resp = followup_service.followup_chat(
         db,
         user_id=user.id,

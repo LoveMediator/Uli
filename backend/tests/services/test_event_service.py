@@ -34,6 +34,7 @@ def test_create_event_success(monkeypatch):
             pass
 
     db = _DB()
+    monkeypatch.setattr(event_service.event_repo, "get_open_event_for_relationship", lambda *_a, **_kw: None)
     monkeypatch.setattr(event_service.event_repo, "create_event", lambda *_a, **_kw: created_event)
 
     event = event_service.create_event(db, user_id=1, title="test", relationship_public_id="r_2001")
@@ -51,6 +52,25 @@ def test_create_event_forbidden_for_non_member():
     with pytest.raises(AppError) as ex:
         event_service.create_event(_DB(), user_id=99, title="test", relationship_public_id="r_2001")
     assert ex.value.code == 2002
+
+
+def test_create_event_rejects_when_open_event_exists(monkeypatch):
+    rel = SimpleNamespace(id=10, public_id="r_2001", user_a_id=1, user_b_id=2)
+    open_event = SimpleNamespace(public_id="ev_open", status=EventStatus.WAITING_B)
+
+    class _DB:
+        def execute(self, *_):
+            return _ScalarResult(rel)
+
+    monkeypatch.setattr(
+        event_service.event_repo,
+        "get_open_event_for_relationship",
+        lambda *_a, **_kw: open_event,
+    )
+
+    with pytest.raises(AppError) as ex:
+        event_service.create_event(_DB(), user_id=1, title="test", relationship_public_id="r_2001")
+    assert ex.value.code == 1003
 
 
 def test_commit_a_success(monkeypatch):

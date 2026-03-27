@@ -1,3 +1,5 @@
+from datetime import date, datetime
+
 from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -26,9 +28,9 @@ class Review(Base):
     # 更新人用户ID
     updated_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     # 创建时间
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     # 更新时间
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class ReviewVersion(Base):
@@ -48,7 +50,7 @@ class ReviewVersion(Base):
     # 编辑人用户ID
     edited_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     # 编辑时间
-    edited_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    edited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class CalendarEntry(Base):
@@ -63,9 +65,9 @@ class CalendarEntry(Base):
     # 关联关系ID
     relationship_id: Mapped[int] = mapped_column(ForeignKey("relationships.id"), nullable=False)
     # 日历日期
-    calendar_date: Mapped[Date] = mapped_column(Date, nullable=False)
+    calendar_date: Mapped[date] = mapped_column(Date, nullable=False)
     # 创建时间
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class FollowupMessage(Base):
@@ -84,4 +86,4 @@ class FollowupMessage(Base):
     # 上下文元信息
     context_meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # 创建时间
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

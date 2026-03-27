@@ -35,7 +35,7 @@ def client(_app):
 
 def test_relay_success(client):
     resp = ElfRelayResponse(
-        message_id="em_1", delivered=True, final_message="已润色",
+        messageId="em_1", delivered=True, finalMessage="已润色",
     )
     with patch("app.services.elf_service.relay_message", return_value=resp):
         r = client.post("/api/v1/elf/relay", json={
@@ -51,7 +51,7 @@ def test_relay_success(client):
 
 def test_moderate_success(client):
     resp = ModerateResponse(
-        blocked=False, risk_level="low", suggested_message=None,
+        blocked=False, riskLevel="low", suggestedMessage=None,
     )
     with patch("app.services.elf_service.moderate_message", return_value=resp):
         r = client.post("/api/v1/elf/moderate", json={

@@ -122,7 +122,10 @@ def get_month_day_counts(
         .group_by(CalendarEntry.calendar_date)
         .order_by(CalendarEntry.calendar_date)
     )
-    return list(db.execute(stmt).all())
+    return [
+        (calendar_date, int(count))
+        for calendar_date, count in db.execute(stmt).all()
+    ]
 
 
 def get_review_items_by_date(
@@ -144,7 +147,10 @@ def get_review_items_by_date(
         )
         .order_by(Review.updated_at.desc())
     )
-    return list(db.execute(stmt).all())
+    return [
+        (review, event)
+        for review, event in db.execute(stmt).all()
+    ]
 
 
 def create_calendar_entry(

@@ -1,7 +1,5 @@
 """Elf 互动路由（3 号）。"""
 
-from typing import Any
-
 from fastapi import APIRouter
 
 from app.api.deps import CurrentActiveUser, Db
@@ -17,7 +15,7 @@ def relay_message(
     body: ElfRelayRequest,
     user: CurrentActiveUser,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     resp = elf_service.relay_message(
         db,
         user_id=user.id,
@@ -33,7 +31,7 @@ def moderate_message(
     body: ModerateRequest,
     user: CurrentActiveUser,
     db: Db,
-) -> dict[str, Any]:
+) -> ApiEnvelope:
     resp = elf_service.moderate_message(
         db, user_id=user.id, raw_message=body.raw_message,
     )

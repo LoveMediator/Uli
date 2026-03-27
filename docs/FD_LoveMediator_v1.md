@@ -99,22 +99,23 @@ Event.status（枚举值均为小写，对应代码 `constants/enums.py` 中的 
 ### 5.3 A 私有分析阶段
 - A 点击"聊天分析"。
 - A 与 AI 对话，AI 仅做文本整理和观点抽取。
-- 该阶段数据仅在私有会话中使用，不写共享 Event。
+- 该阶段数据仅在后端临时缓存会话中使用，不写共享 Event / Snapshot / JudgeResult。
 
 ### 5.4 A 确认事实（Commit/Freeze）
 - A 点击"对，基本是这样"。
 - 后端执行：
-  1. **MVP 实现**（当前）：请求体 `confirmText` 直接作为 Snapshot_A 的 `summary`（见 `services/event_service.py` 的 `commit_a` 函数）。**完整流程**（待实现）：从当前私有会话（`private_messages`）生成结构化事实。
-  2. 创建 Snapshot_A（冻结，不可修改）。
-  3. 持久化保存，写入 `event_state_logs`（见 `repos/audit_repo.py`）。
-  4. Event.status 置为 `waiting_b`。
+  1. 从当前临时分析会话生成结构化事实。
+  2. 事务内创建 Event。
+  3. 创建 Snapshot_A（冻结，不可修改）。
+  4. 持久化保存，写入 `event_state_logs`（见 `repos/audit_repo.py`）。
+  5. Event.status 置为 `waiting_b`。
 - 该行为定义为一次明确的 commit/freeze。
 
 ### 5.5 发送给 B
-- 系统推送 Snapshot_A 给 B，B 默认只读。
+- B 打开软件后可在关系摘要中发现当前待处理事件；进入后默认只读查看 Snapshot_A。
 - B 有两种分支：
   1. 同意：`b-agree` 校验 `agree=true` 后执行 `judge(snapshot_A, inferred_snapshot_B)`，生成 JudgeResult，Event.status=`judged`。同时自动创建 review + calendar_entry（见 `services/review_service.create_review_from_judge`）。
-  2. 不同意：B 提交 `commit-b`（含 summary/pointsA/pointsB），生成 Snapshot_B，再 `judge(snapshot_A, snapshot_B)`，Event.status=`judged`。同样自动沉淀 review + calendar。
+  2. 不同意：B 先进入自己的私有分析会话，确认后生成 Snapshot_B，再 `judge(snapshot_A, snapshot_B)`，Event.status=`judged`。同样自动沉淀 review + calendar。
 
 ### 5.6 查看结果
 - 用户点击"分析结果"时，系统直接读取落库 JudgeResult。

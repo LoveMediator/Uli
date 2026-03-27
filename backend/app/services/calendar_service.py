@@ -53,10 +53,10 @@ def get_day_reviews(
     rows = review_repo.get_review_items_by_date(db, relationship_id, target_date)
     items = [
         ReviewListItem(
-            review_id=review.public_id,
-            event_id=event.public_id,
+            reviewId=review.public_id,
+            eventId=event.public_id,
             title=event.title,
-            updated_at=review.updated_at,
+            updatedAt=review.updated_at,
         )
         for review, event in rows
     ]
