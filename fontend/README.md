@@ -8,18 +8,15 @@ React + TypeScript + Vite frontend for the LoveMediator app.
 pnpm install
 pnpm run dev
 pnpm run build
-pnpm run build:readable
-pnpm run assets:readable
 pnpm run lint
-pnpm run test
-pnpm run test:e2e
+pnpm run preview
 ```
 
 ## Source Structure
 
 ```text
 src/
-|- app/                    # bootstrap, router, route preload, providers, app state
+|- app/                    # app bootstrap, router, route preload, providers, app state
 |- shared/                 # config, shared libs, http client, layout, ui, styles
 |  |- api/
 |  |- config/
@@ -27,14 +24,13 @@ src/
 |  |- lib/
 |  |- styles/
 |  `- ui/
-|- domains/                # business domains
-|  |- auth/
-|  |- home/
-|  |- mediation/
-|  |- calendar/
-|  |- invite/
-|  `- profile/
-`- test/                   # vitest + msw helpers
+`- domains/                # business domains
+   |- auth/
+   |- home/
+   |- mediation/
+   |- calendar/
+   |- invite/
+   `- profile/
 ```
 
 Each domain follows the same internal shape:
@@ -53,34 +49,22 @@ domains/<name>/
 - `app` can import domain business APIs and stores from `@/domains/*`.
 - Page components live under `domains/*/page` and are lazy-loaded through `app/routes`.
 - `shared` must stay reusable and should not depend on domain business logic.
-- Legacy folders like `src/pages`, `src/components`, `src/api`, `src/hooks`, `src/stores`, `src/types` are compatibility shims only.
+- New code must live under `src/app`, `src/shared`, or `src/domains`.
+- `dist` is a build artifact, not a maintenance target.
 - Persist keys stay unchanged:
   - `love-mediator-auth`
   - `love-mediator-app`
 
 ## Build Output Structure
 
-Production build now splits the old monolithic asset into maintainable chunks:
+Production build splits assets by entry, page chunk, shared chunk, and vendor group:
 
 ```text
 dist/assets/
-|- entries/               # boot entry
+|- entries/
 |- chunks/
-|  |- vendor/             # react, data, forms, visual libs
-|  |- LoginPage-*.js
-|  |- HomePage-*.js
-|  |- MediationPage-*.js
-|  `- ...
+|  |- vendor/
+|  `- *.js
 `- styles/
-   `- index-*.css
+   `- *.css
 ```
-
-`pnpm run assets:readable` formats every generated JS/CSS asset recursively under `dist/assets`.
-
-## Testing Baseline
-
-- Unit/component: Vitest + Testing Library
-- API mocking: MSW
-- Smoke E2E: Playwright
-
-Production build excludes `*.test.ts(x)` and `src/test/**`, so test scaffolding does not affect shipped code.

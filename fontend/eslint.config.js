@@ -6,16 +6,7 @@ import tseslint from 'typescript-eslint';
 import { defineConfig, globalIgnores } from 'eslint/config';
 
 export default defineConfig([
-  globalIgnores([
-    'dist',
-    'tailwind.config.ts',
-    'playwright.config.ts',
-    'vitest.config.ts',
-    'e2e/**',
-    'src/test/**',
-    'src/**/*.test.ts',
-    'src/**/*.test.tsx',
-  ]),
+  globalIgnores(['dist', 'tailwind.config.ts']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -40,13 +31,21 @@ export default defineConfig([
         'error',
         {
           patterns: [
+            '@/pages',
             '@/pages/*',
+            '@/components',
             '@/components/*',
+            '@/stores',
             '@/stores/*',
+            '@/hooks',
             '@/hooks/*',
+            '@/api',
             '@/api/*',
+            '@/lib',
             '@/lib/*',
+            '@/utils',
             '@/utils/*',
+            '@/types',
             '@/types/*',
           ],
         },
