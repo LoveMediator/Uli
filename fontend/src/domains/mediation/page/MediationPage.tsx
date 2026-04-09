@@ -92,6 +92,7 @@ export function MediationPage() {
   });
 
   const inviteLink = currentEvent ? `${window.location.origin}/invite/${currentEvent.eventId}` : '';
+  const previewMessages = tempMessages;
 
   return (
     <div className="relative flex h-full flex-col bg-milk-50">
@@ -209,7 +210,11 @@ export function MediationPage() {
               </div>
             ) : null}
 
-            <Button variant="secondary" fullWidth onClick={clearCurrentEvent}>
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={clearCurrentEvent}
+            >
               清空当前事件
             </Button>
           </Card>
@@ -296,7 +301,7 @@ export function MediationPage() {
             <h3 className="mt-1 text-xl font-extrabold text-coffee-900">确认并冻结 Snapshot_A</h3>
           </div>
           <div className="max-h-64 space-y-3 overflow-y-auto rounded-3xl bg-milk-50 p-4">
-            {tempMessages.map((item, index) => (
+            {previewMessages.map((item, index) => (
               <div
                 key={`${item.role}-${index}`}
                 className={

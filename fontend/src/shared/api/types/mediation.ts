@@ -20,6 +20,51 @@ export interface CommitAData {
   snapshotAId: string;
 }
 
+export interface StartAnalysisSessionARequest {
+  eventId?: string;
+  title?: string;
+}
+
+export interface AnalysisSessionImagePayload {
+  imageId: string;
+  mimeType: string;
+  filename: string | null;
+}
+
+export interface AnalysisSessionMessagePayload {
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+  images: AnalysisSessionImagePayload[];
+}
+
+export interface AnalysisSessionData {
+  sessionId: string;
+  phase: 'a' | 'b';
+  relationshipId: string | null;
+  eventId: string | null;
+  expiresAt: string;
+  messages: AnalysisSessionMessagePayload[];
+}
+
+export interface AnalysisSessionMessageRequest {
+  message: string;
+}
+
+export interface AnalysisSessionMessageData {
+  sessionId: string;
+  reply: string;
+}
+
+export interface AnalysisSessionCommitData {
+  sessionId: string;
+  eventId: string;
+  status: EventStatusValue;
+  snapshotAId: string | null;
+  snapshotBId: string | null;
+  judgeResultId: string | null;
+}
+
 export interface InviteData {
   eventId: string;
   status: EventStatusValue;
