@@ -1,14 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
-import { AppShell } from '@/components/layout/AppShell';
-import { LoginPage } from '@/pages/auth/LoginPage';
-import { RegisterPage } from '@/pages/auth/RegisterPage';
-import { CalendarPage } from '@/pages/calendar/CalendarPage';
-import { HomePage } from '@/pages/home/HomePage';
-import { InvitePage } from '@/pages/invite/InvitePage';
-import { MediationPage } from '@/pages/mediation/MediationPage';
-import { ProfilePage } from '@/pages/profile/ProfilePage';
-import { useAuthStore } from '@/stores/auth-store';
+import { useAuthStore } from '@/domains/auth';
+import { RoutePage } from '@/app/routes/RoutePage';
+import {
+  CalendarPage,
+  HomePage,
+  InvitePage,
+  LoginPage,
+  MediationPage,
+  ProfilePage,
+  RegisterPage,
+} from '@/app/routes/route-modules';
+import { AppShell } from '@/shared/layout';
 
 function AnimatedOutlet() {
   const location = useLocation();
@@ -63,19 +66,19 @@ export function AppRouter() {
     <BrowserRouter>
       <Routes>
         <Route element={<PublicOnly />}>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/login" element={<RoutePage component={LoginPage} />} />
+          <Route path="/register" element={<RoutePage component={RegisterPage} />} />
         </Route>
 
-        <Route path="/invite/:eventId" element={<InvitePage />} />
+        <Route path="/invite/:eventId" element={<RoutePage component={InvitePage} />} />
 
         <Route element={<RequireAuth />}>
           <Route path="/app" element={<ShellRoutes />}>
             <Route index element={<Navigate to="/app/home" replace />} />
-            <Route path="home" element={<HomePage />} />
-            <Route path="mediation" element={<MediationPage />} />
-            <Route path="calendar" element={<CalendarPage />} />
-            <Route path="profile" element={<ProfilePage />} />
+            <Route path="home" element={<RoutePage component={HomePage} />} />
+            <Route path="mediation" element={<RoutePage component={MediationPage} />} />
+            <Route path="calendar" element={<RoutePage component={CalendarPage} />} />
+            <Route path="profile" element={<RoutePage component={ProfilePage} />} />
           </Route>
         </Route>
 

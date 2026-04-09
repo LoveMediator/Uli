@@ -24,4 +24,32 @@ export default defineConfig([
       },
     },
   },
+  {
+    files: ['src/app/**/*.{ts,tsx}', 'src/shared/**/*.{ts,tsx}', 'src/domains/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            '@/pages',
+            '@/pages/*',
+            '@/components',
+            '@/components/*',
+            '@/stores',
+            '@/stores/*',
+            '@/hooks',
+            '@/hooks/*',
+            '@/api',
+            '@/api/*',
+            '@/lib',
+            '@/lib/*',
+            '@/utils',
+            '@/utils/*',
+            '@/types',
+            '@/types/*',
+          ],
+        },
+      ],
+    },
+  },
 ]);
