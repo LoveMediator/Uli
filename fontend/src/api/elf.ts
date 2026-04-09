@@ -1,17 +1,11 @@
-import { apiClient, unwrapResponse } from './client';
-import type {
-  ModerateMessageRequest,
-  ModerateMessageResponse,
-  RelayMessageRequest,
-  RelayMessageResponse,
-} from '@/types';
+import { homeApi, moderateMessage } from '@/domains/home';
+import { relayMessage } from '@/domains/mediation';
 
-export async function relayMessage(data: RelayMessageRequest) {
-  const response = await apiClient.post('/elf/relay', data);
-  return unwrapResponse<RelayMessageResponse>(response);
-}
+export { moderateMessage, relayMessage };
 
-export async function moderateMessage(data: ModerateMessageRequest) {
-  const response = await apiClient.post('/elf/moderate', data);
-  return unwrapResponse<ModerateMessageResponse>(response);
-}
+export const elfApi = {
+  moderateMessage,
+  relayMessage,
+};
+
+export { homeApi };

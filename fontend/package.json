@@ -6,7 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "assets:readable": "node ./scripts/beautify-dist-assets.mjs",
+    "build:readable": "npm run build && npm run assets:readable",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -25,11 +30,17 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "jsdom": "^27.0.1",
+    "msw": "^2.11.5",
     "autoprefixer": "^10.4.21",
     "babel-plugin-react-compiler": "^1.0.0",
     "eslint": "^9.39.1",
@@ -40,6 +51,7 @@
     "tailwindcss": "^3.4.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^3.2.4"
   }
 }

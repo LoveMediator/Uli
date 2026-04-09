@@ -1,0 +1,13 @@
+@layer utilities {
+  .glass-nav {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(255, 255, 255, 0.6);
+  }
+
+  .floor-perspective {
+    transform: perspective(300px) rotateX(20deg) scale(1.2);
+    transform-origin: bottom;
+  }
+}

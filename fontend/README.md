@@ -1,75 +1,86 @@
-# React + TypeScript + Vite
+# LoveMediator Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript + Vite frontend for the LoveMediator app.
 
-Currently, two official plugins are available:
+## Commands
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
-
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm install
+pnpm run dev
+pnpm run build
+pnpm run build:readable
+pnpm run assets:readable
+pnpm run lint
+pnpm run test
+pnpm run test:e2e
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Source Structure
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```text
+src/
+|- app/                    # bootstrap, router, route preload, providers, app state
+|- shared/                 # config, shared libs, http client, layout, ui, styles
+|  |- api/
+|  |- config/
+|  |- layout/
+|  |- lib/
+|  |- styles/
+|  `- ui/
+|- domains/                # business domains
+|  |- auth/
+|  |- home/
+|  |- mediation/
+|  |- calendar/
+|  |- invite/
+|  `- profile/
+`- test/                   # vitest + msw helpers
 ```
+
+Each domain follows the same internal shape:
+
+```text
+domains/<name>/
+|- api/
+|- model/
+|- ui/
+|- page/
+`- index.ts
+```
+
+## Architecture Rules
+
+- `app` can import domain business APIs and stores from `@/domains/*`.
+- Page components live under `domains/*/page` and are lazy-loaded through `app/routes`.
+- `shared` must stay reusable and should not depend on domain business logic.
+- Legacy folders like `src/pages`, `src/components`, `src/api`, `src/hooks`, `src/stores`, `src/types` are compatibility shims only.
+- Persist keys stay unchanged:
+  - `love-mediator-auth`
+  - `love-mediator-app`
+
+## Build Output Structure
+
+Production build now splits the old monolithic asset into maintainable chunks:
+
+```text
+dist/assets/
+|- entries/               # boot entry
+|- chunks/
+|  |- vendor/             # react, data, forms, visual libs
+|  |- LoginPage-*.js
+|  |- HomePage-*.js
+|  |- MediationPage-*.js
+|  `- ...
+`- styles/
+   `- index-*.css
+```
+
+`pnpm run assets:readable` formats every generated JS/CSS asset recursively under `dist/assets`.
+
+## Testing Baseline
+
+- Unit/component: Vitest + Testing Library
+- API mocking: MSW
+- Smoke E2E: Playwright
+
+Production build excludes `*.test.ts(x)` and `src/test/**`, so test scaffolding does not affect shipped code.
