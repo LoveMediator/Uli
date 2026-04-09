@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
@@ -62,12 +63,70 @@ def _extract_text_content(content: Any) -> str:
     return str(content or "")
 
 
+def _extract_json_text(content: str) -> str | None:
+    text = content.strip()
+    if not text:
+        return None
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines:
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    if text.startswith("{") and text.endswith("}"):
+        return text
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    return text[start : end + 1]
+
+
+def _parse_structured_private_reply(raw_content: str) -> tuple[str, bool, str | None]:
+    reply = raw_content.strip()
+    can_confirm = False
+    fact_summary: str | None = None
+
+    json_text = _extract_json_text(raw_content)
+    if json_text is None:
+        return reply, can_confirm, fact_summary
+
+    try:
+        payload = json.loads(json_text)
+    except json.JSONDecodeError:
+        return reply, can_confirm, fact_summary
+    if not isinstance(payload, dict):
+        return reply, can_confirm, fact_summary
+
+    payload_reply = str(payload.get("reply", "")).strip()
+    if payload_reply:
+        reply = payload_reply
+
+    raw_can_confirm = payload.get("can_confirm")
+    if raw_can_confirm is None:
+        raw_can_confirm = payload.get("canConfirm")
+    can_confirm = bool(raw_can_confirm)
+
+    raw_fact_summary = payload.get("fact_summary")
+    if raw_fact_summary is None:
+        raw_fact_summary = payload.get("factSummary")
+    if raw_fact_summary is not None:
+        candidate = str(raw_fact_summary).strip()
+        if candidate:
+            fact_summary = candidate
+
+    if not fact_summary:
+        can_confirm = False
+    return reply, can_confirm, fact_summary
+
+
 def call_private_chat_llm(
     *,
     messages: list[dict[str, Any]],
     model_name: str = "mock-private-chat-v1",
 ) -> dict[str, Any]:
-    """私聊分析专用的 LLM 出口。"""
+    """LLM entrypoint for private analysis chat."""
     if not settings.kimi_api_key:
         raise AppError("Kimi API Key 未配置", code=5000)
 
@@ -77,7 +136,11 @@ def call_private_chat_llm(
         "messages": messages,
     }
     try:
-        with httpx.Client(base_url=settings.kimi_base_url, timeout=60.0) as client:
+        with httpx.Client(
+            base_url=settings.kimi_base_url,
+            timeout=60.0,
+            trust_env=False,
+        ) as client:
             response = client.post(
                 "/chat/completions",
                 headers={
@@ -103,7 +166,10 @@ def call_private_chat_llm(
             or error_payload.get("message")
             or response.text
         )
-        raise AppError(f"Kimi 请求失败：{error_message}", code=1001 if response.status_code < 500 else 5000)
+        raise AppError(
+            f"Kimi 请求失败：{error_message}",
+            code=1001 if response.status_code < 500 else 5000,
+        )
 
     payload = response.json()
     choices = payload.get("choices") or []
@@ -113,15 +179,19 @@ def call_private_chat_llm(
     message = choices[0].get("message", {})
     usage = payload.get("usage", {})
     text_chars, image_count = _count_message_metrics(messages)
-    content = _extract_text_content(message.get("content")).strip()
-    if not content:
-        content = (
+    raw_content = _extract_text_content(message.get("content")).strip()
+    if not raw_content:
+        raw_content = (
             f"[EMPTY] Kimi returned no text content for {len(messages)} messages, "
             f"{text_chars} text chars, {image_count} images."
         )
+    content, can_confirm, fact_summary = _parse_structured_private_reply(raw_content)
     return {
         "model_name": resolved_model,
         "input_tokens": int(usage.get("prompt_tokens", 0) or 0),
         "output_tokens": int(usage.get("completion_tokens", 0) or 0),
         "content": content,
+        "can_confirm": can_confirm,
+        "fact_summary": fact_summary,
+        "raw_content": raw_content,
     }

@@ -78,7 +78,7 @@ def test_commit_a_success(monkeypatch):
         id=100, public_id="ev_1", status=EventStatus.DRAFT,
         relationship_id=10, initiator_user_id=1,
     )
-    rel = SimpleNamespace(id=10, user_a_id=1, user_b_id=2)
+    rel = SimpleNamespace(id=10, public_id="rel_1", user_a_id=1, user_b_id=2)
     snapshot = SimpleNamespace(public_id="sa_1")
     calls = {"state_log": 0, "committed": 0}
 
@@ -110,7 +110,7 @@ def test_commit_a_rejects_non_initiator():
         id=100, public_id="ev_1", status=EventStatus.DRAFT,
         relationship_id=10, initiator_user_id=1,
     )
-    rel = SimpleNamespace(id=10, user_a_id=1, user_b_id=2)
+    rel = SimpleNamespace(id=10, public_id="rel_1", user_a_id=1, user_b_id=2)
 
     class _DB:
         def __init__(self):
@@ -129,7 +129,7 @@ def test_commit_a_rejects_wrong_status():
         id=100, public_id="ev_1", status=EventStatus.WAITING_B,
         relationship_id=10, initiator_user_id=1,
     )
-    rel = SimpleNamespace(id=10, user_a_id=1, user_b_id=2)
+    rel = SimpleNamespace(id=10, public_id="rel_1", user_a_id=1, user_b_id=2)
 
     class _DB:
         def __init__(self):
@@ -148,10 +148,14 @@ def test_b_agree_success(monkeypatch):
         id=100, public_id="ev_1", status=EventStatus.WAITING_B,
         relationship_id=10, initiator_user_id=1, judged_at=None,
     )
-    rel = SimpleNamespace(id=10, user_a_id=1, user_b_id=2)
+    rel = SimpleNamespace(id=10, public_id="rel_1", user_a_id=1, user_b_id=2)
     snapshot_a = SimpleNamespace(id=1, summary="test", points_a=[], points_b=[])
     judge = SimpleNamespace(
         public_id="jr_1", objective_summary="test",
+        triggers=["t1"],
+        misunderstandings=["m1"],
+        advice_for_a=["a1"],
+        advice_for_b=["b1"],
         model_name="mock", input_tokens=0, output_tokens=0,
     )
     review = SimpleNamespace(public_id="rv_1")
@@ -177,9 +181,14 @@ def test_b_agree_success(monkeypatch):
     monkeypatch.setattr(event_service.judge_service, "generate_judge_result", lambda *_a, **_kw: judge)
     monkeypatch.setattr(event_service.audit_repo, "create_event_state_log", lambda *_a, **_kw: SimpleNamespace())
     monkeypatch.setattr(event_service.audit_repo, "create_ai_call_log", lambda *_a, **_kw: SimpleNamespace())
+    monkeypatch.setattr(
+        event_service.review_service,
+        "generate_review_content_from_judge",
+        lambda *_a, **_kw: {"content": "review", "model_name": "mock", "input_tokens": 0, "output_tokens": 0},
+    )
     monkeypatch.setattr(event_service.review_service, "create_review_from_judge", lambda *_a, **_kw: review)
 
-    ev, jr = event_service.b_agree(db, user_id=2, event_public_id="ev_1")
+    ev, jr = event_service.b_agree(db, user_id=2, event_public_id="ev_1", agree=True)
     assert jr.public_id == "jr_1"
     assert event.status == EventStatus.JUDGED
 
@@ -199,7 +208,7 @@ def test_b_agree_rejects_initiator():
             return _ScalarResult(event if self._step == 1 else rel)
 
     with pytest.raises(AppError) as ex:
-        event_service.b_agree(_DB(), user_id=1, event_public_id="ev_1")
+        event_service.b_agree(_DB(), user_id=1, event_public_id="ev_1", agree=True)
     assert ex.value.code == 2002
 
 

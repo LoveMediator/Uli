@@ -9,6 +9,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.constants.error_codes import INVALID_PARAMS, NOT_FOUND
+from app.core.config import settings
 from app.core.errors import AppError
 from app.models.review import Review
 from app.repos import review_repo
@@ -185,7 +186,7 @@ def generate_review_content_from_judge(
     ai_result = ai_service.call_llm_json(
         prompt=prompt,
         response_model=ReviewAiPayload,
-        model_name="review-v1",
+        model_name=settings.kimi_text_model,
         system_prompt=(
             "你是后端复盘正文生成器。"
             "你只输出合法 JSON，字段 content 必须是一段可直接展示给用户的复盘正文。"

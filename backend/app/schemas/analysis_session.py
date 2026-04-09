@@ -30,6 +30,8 @@ class AnalysisSessionData(BaseModel):
     relationship_id: str | None = Field(alias="relationshipId", default=None)
     event_id: str | None = Field(alias="eventId", default=None)
     expires_at: datetime = Field(alias="expiresAt")
+    can_commit: bool = Field(alias="canCommit", default=False)
+    fact_summary: str | None = Field(alias="factSummary", default=None)
     messages: list[AnalysisSessionMessagePayload]
 
 
@@ -44,6 +46,8 @@ class AnalysisSessionMessageData(BaseModel):
 
     session_id: str = Field(alias="sessionId")
     reply: str
+    can_commit: bool = Field(alias="canCommit", default=False)
+    fact_summary: str | None = Field(alias="factSummary", default=None)
 
 
 class AnalysisSessionCommitData(BaseModel):

@@ -10,8 +10,8 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.models.relationship import Relationship
 from app.models.user import User
-from app.repos import event_repo, relationship_repo, user_repo
-from app.constants.enums import EventStatus
+from app.repos import event_repo, relationship_repo, snapshot_repo, user_repo
+from app.constants.enums import EventStatus, SnapshotSide
 from app.schemas.relationship import (
     RelationshipAcceptData,
     RelationshipCancelData,
@@ -23,6 +23,7 @@ from app.schemas.relationship import (
     RelationshipSummary,
 )
 from app.services.analysis_session_store import get_analysis_session_store
+from app.utils.event_titles import build_event_display_title
 from app.utils.ids import generate_public_id
 
 INVITE_TOKEN_TYPE = "relationship_invite"
@@ -121,7 +122,7 @@ def _assert_relationship_member(relationship: Relationship, user_id: int) -> Non
         raise AppError("无权操作该关系", code=FORBIDDEN)
 
 
-def _build_current_event_summary(event: object, current_user_id: int) -> RelationshipCurrentEvent:
+def _build_current_event_summary(db: Session, event: object, current_user_id: int) -> RelationshipCurrentEvent:
     pending_action = "respond" if getattr(event, "initiator_user_id", None) != current_user_id else "wait_partner"
     if getattr(event, "status", None) == EventStatus.DRAFT:
         pending_action = (
@@ -129,11 +130,29 @@ def _build_current_event_summary(event: object, current_user_id: int) -> Relatio
             if getattr(event, "initiator_user_id", None) == current_user_id
             else "wait_partner"
         )
+    title = build_event_display_title(getattr(event, "title", None))
+    event_id = getattr(event, "id", None)
+    if title is None and event_id is not None:
+        snapshot_b = snapshot_repo.get_snapshot_by_event_and_side(
+            db,
+            event_id,
+            SnapshotSide.B,
+        )
+        snapshot_a = snapshot_repo.get_snapshot_by_event_and_side(
+            db,
+            event_id,
+            SnapshotSide.A,
+        )
+        title = build_event_display_title(
+            None,
+            getattr(snapshot_b, "summary", None),
+            getattr(snapshot_a, "summary", None),
+        )
     return RelationshipCurrentEvent(
         eventId=getattr(event, "public_id"),
         status=getattr(getattr(event, "status"), "value", getattr(event, "status")),
         pendingAction=pending_action,
-        title=getattr(event, "title", None),
+        title=title,
     )
 
 
@@ -146,7 +165,7 @@ def _build_summary(
     open_event = event_repo.get_open_event_for_relationship(db, relationship.id)
     current_event = None
     if open_event is not None:
-        current_event = _build_current_event_summary(open_event, current_user_id)
+        current_event = _build_current_event_summary(db, open_event, current_user_id)
     return RelationshipSummary(
         relationshipId=relationship.public_id,
         partnerUserId=partner.public_id,

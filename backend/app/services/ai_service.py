@@ -1,21 +1,9 @@
-"""AI 服务层占位。
+"""Shared LLM helpers."""
 
-当前为 mock 实现，后续替换为真实 LLM 调用。
-所有需要 LLM 的场景（judge / followup / elf）统一通过本模块入口。
-"""
+from __future__ import annotations
 
-
-def call_llm(*, prompt: str, model_name: str = "mock-v1") -> dict:
-    """调用 LLM（当前 mock）。后续替换为真实 API 调用。"""
-    return {
-        "model_name": model_name,
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "content": f"[MOCK] AI response for prompt length={len(prompt)}",
-    }
-
-from typing import Any, TypeVar
 import json
+from typing import Any, TypeVar
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -26,9 +14,9 @@ from app.core.errors import AppError
 T = TypeVar("T", bound=BaseModel)
 
 DEFAULT_SYSTEM_PROMPT = (
-    "你是 LoveMediator 的后端 AI 助手。"
-    "你需要输出冷静、准确、可执行的中文内容。"
-    "不要编造数据库里不存在的事实，不要输出攻击性建议。"
+    "You are LoveMediator's backend AI assistant. "
+    "Return calm, accurate, and actionable content. "
+    "Do not invent facts that are not present in the provided context."
 )
 
 
@@ -38,15 +26,18 @@ def _resolve_model(model_name: str | None) -> str:
     return settings.kimi_text_model
 
 
+def _is_kimi_k2_family(model_name: str) -> bool:
+    normalized = model_name.strip().lower()
+    return normalized.startswith("kimi-k2")
+
+
 def _extract_text_content(content: Any) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
         text_parts: list[str] = []
         for item in content:
-            if not isinstance(item, dict):
-                continue
-            if item.get("type") == "text":
+            if isinstance(item, dict) and item.get("type") == "text":
                 text_parts.append(str(item.get("text", "")))
         return "\n".join(part for part in text_parts if part)
     return str(content or "")
@@ -65,10 +56,17 @@ def _request_chat_completion(
     request_payload = {
         "model": resolved_model,
         "messages": messages,
-        "temperature": temperature,
     }
+    if _is_kimi_k2_family(resolved_model):
+        request_payload["thinking"] = {"type": "disabled"}
+    else:
+        request_payload["temperature"] = temperature
     try:
-        with httpx.Client(base_url=settings.kimi_base_url, timeout=60.0) as client:
+        with httpx.Client(
+            base_url=settings.kimi_base_url,
+            timeout=60.0,
+            trust_env=False,
+        ) as client:
             response = client.post(
                 "/chat/completions",
                 headers={
@@ -80,7 +78,7 @@ def _request_chat_completion(
     except httpx.TimeoutException as exc:
         raise AppError("Kimi 请求超时，请稍后重试", code=5000) from exc
     except httpx.HTTPError as exc:
-        raise AppError(f"Kimi 服务调用失败：{exc}", code=5000) from exc
+        raise AppError(f"Kimi 服务调用失败: {exc}", code=5000) from exc
 
     if response.status_code == 401:
         raise AppError("Kimi API 认证失败，请检查 API Key", code=5000)
@@ -95,7 +93,7 @@ def _request_chat_completion(
             or response.text
         )
         raise AppError(
-            f"Kimi 请求失败：{error_message}",
+            f"Kimi 请求失败: {error_message}",
             code=1001 if response.status_code < 500 else 5000,
         )
 
@@ -178,7 +176,7 @@ def call_llm_json(
     raw_result = call_llm(
         prompt=(
             f"{prompt}\n\n"
-            "请只返回一个合法 JSON 对象，不要输出 Markdown、解释或额外前后缀。\n"
+            "Return one valid JSON object only, without Markdown or extra commentary.\n"
             f"JSON Schema: {schema_text}"
         ),
         model_name=model_name,
@@ -190,7 +188,7 @@ def call_llm_json(
     try:
         parsed = response_model.model_validate_json(json_text)
     except (ValidationError, ValueError) as exc:
-        raise AppError(f"AI 返回格式无效：{exc}", code=5000) from exc
+        raise AppError(f"AI 返回格式无效: {exc}", code=5000) from exc
 
     raw_result["data"] = parsed
     return raw_result

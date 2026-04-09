@@ -68,6 +68,8 @@ def _build_session_data(session: dict[str, Any]) -> AnalysisSessionData:
         relationshipId=session.get("relationshipId"),
         eventId=session.get("eventId"),
         expiresAt=datetime.fromisoformat(session["expiresAt"]),
+        canCommit=bool(session.get("canCommit", False)),
+        factSummary=session.get("factSummary"),
         messages=[
             AnalysisSessionMessagePayload(
                 role=message["role"],
@@ -97,10 +99,107 @@ def _append_message(
     )
 
 
+def _infer_reply_language(session: dict[str, Any]) -> str:
+    for item in reversed(session.get("messages", [])):
+        if item.get("role") != "user":
+            continue
+        content = str(item.get("content", "")).strip()
+        if not content:
+            continue
+        if any("\u4e00" <= ch <= "\u9fff" for ch in content):
+            return "Simplified Chinese"
+        if any(ch.isascii() and ch.isalpha() for ch in content):
+            return "English"
+    return "Simplified Chinese"
+
+
+def _is_low_information_text(content: str) -> bool:
+    stripped = content.strip()
+    if not stripped:
+        return True
+    punctuation_only = {"?", "？", "!", "！", ".", "。", ",", "，", "~", "～", "…", " "}
+    if all(ch in punctuation_only for ch in stripped):
+        return True
+    low_information_phrases = {
+        "不知道",
+        "不知道怎么说",
+        "说不出来",
+        "不想说",
+        "很乱",
+        "好乱",
+        "不清楚",
+    }
+    return len(stripped) <= 8 and any(phrase in stripped for phrase in low_information_phrases)
+
+
+def _latest_user_text(session: dict[str, Any]) -> str:
+    for item in reversed(session.get("messages", [])):
+        if item.get("role") == "user":
+            return str(item.get("content", "")).strip()
+    return ""
+
+
+def _select_relevant_history(session: dict[str, Any]) -> list[dict[str, Any]]:
+    history = session.get("messages", [])
+    latest_user_text = _latest_user_text(session)
+    if not latest_user_text or _is_low_information_text(latest_user_text):
+        return history[-8:]
+
+    filtered: list[dict[str, Any]] = []
+    skip_next_assistant = False
+    for item in history:
+        role = str(item.get("role", ""))
+        content = str(item.get("content", ""))
+        if role == "user" and _is_low_information_text(content):
+            filtered = []
+            skip_next_assistant = True
+            continue
+        if skip_next_assistant and role == "assistant":
+            skip_next_assistant = False
+            continue
+        skip_next_assistant = False
+        filtered.append(item)
+    return filtered[-6:]
+
+
 def _build_private_system_prompt(session: dict[str, Any]) -> str:
+    reply_language = _infer_reply_language(session)
+    latest_user_text = _latest_user_text(session)
+    latest_is_concrete = bool(latest_user_text) and not _is_low_information_text(latest_user_text)
     return (
-        "You are a private mediation assistant. Help the user organize facts, "
-        "clarify emotions, and identify viewpoints without advancing business state. "
+        "You are LoveMediator's private mediation assistant. "
+        "Your job is to help the user organize facts, clarify emotions, and identify viewpoints "
+        "without advancing business state or pretending the event is already committed. "
+        f"Mandatory reply language: {reply_language}. "
+        "If the mandatory reply language is Simplified Chinese, reply only in Simplified Chinese. "
+        "If the mandatory reply language is English, reply only in English. "
+        "Return JSON only, with no markdown fences and no extra text. "
+        'Schema: {"reply":"string","can_confirm":boolean,"fact_summary":"string|null"}. '
+        '"reply" is the assistant message shown to the user. '
+        '"can_confirm" must be true only when you have already organized a clear enough factual version '
+        "for the user to confirm as the event facts. "
+        '"fact_summary" must be a concise factual summary in the same language when "can_confirm" is true, '
+        'and must be null when "can_confirm" is false. '
+        'When "can_confirm" is true, "reply" should explicitly present the organized facts and invite the '
+        'user to confirm whether they are basically accurate. '
+        'When "can_confirm" is false, "reply" should continue the conversation by organizing the facts so far '
+        "and asking for the next missing detail. "
+        "Prioritize the latest user message over older ambiguous turns. "
+        "If the latest user message already contains a concrete event or quote, first restate that concrete fact "
+        "and ask one focused clarification question. "
+        f"latest_message_is_concrete={str(latest_is_concrete).lower()}. "
+        f"latest_user_message={latest_user_text!r}. "
+        "If latest_message_is_concrete=true, you must anchor the reply in the concrete content of latest_user_message. "
+        "If latest_message_is_concrete=true, you must not say the user is confused, unable to speak, or doesn't know "
+        "where to start, unless the latest message itself says that. "
+        "Bad behavior when latest_message_is_concrete=true: generic calming, breathing guidance, or asking the user to "
+        "restart from a blank slate. "
+        'Good pattern when latest_message_is_concrete=true: if latest_user_message is "我的男朋友说我是猪", '
+        'reply should first capture the concrete fact "你的男朋友对你说了‘你是猪’"，then ask one clarifying question '
+        "such as the context, timing, or immediate reaction. "
+        "Do not switch into breathing, grounding, silence, or emotional stabilization guidance unless the latest "
+        "user message itself is low-information, overwhelmed, or explicitly asking for that kind of support. "
+        "Keep the tone calm, supportive, and practical. "
         f"Current phase={session['phase']}."
     )
 
@@ -130,7 +229,7 @@ def _build_private_messages(session: dict[str, Any]) -> list[dict[str, Any]]:
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": _build_private_system_prompt(session)}
     ]
-    for item in session.get("messages", [])[-8:]:
+    for item in _select_relevant_history(session):
         messages.append(_to_llm_message(item))
     return messages
 
@@ -157,21 +256,23 @@ def _raw_payload_messages(session: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _build_structured_snapshot(session: dict[str, Any]) -> tuple[str, list[str], list[str], dict[str, Any]]:
+    fact_summary = str(session.get("factSummary") or "").strip()
+    if not fact_summary:
+        raise AppError("当前分析结果还不足以确认事实，请继续对话", code=INVALID_STATE)
+
     user_messages = [
         str(item.get("content", "")).strip()
         for item in session.get("messages", [])
         if item.get("role") == "user" and str(item.get("content", "")).strip()
     ]
-    if not user_messages:
-        raise AppError("当前分析会话没有可确认的文字内容", code=INVALID_STATE)
-
-    summary = user_messages[-1]
     unique_points: list[str] = []
     for item in user_messages:
         if item not in unique_points:
             unique_points.append(item)
         if len(unique_points) >= 3:
             break
+    if not unique_points:
+        unique_points.append(fact_summary)
 
     if session["phase"] == PHASE_A:
         points_a = unique_points
@@ -183,8 +284,9 @@ def _build_structured_snapshot(session: dict[str, Any]) -> tuple[str, list[str],
     raw_payload = {
         "phase": session["phase"],
         "messages": _raw_payload_messages(session),
+        "factSummary": fact_summary,
     }
-    return summary, points_a, points_b, raw_payload
+    return fact_summary, points_a, points_b, raw_payload
 
 
 def _get_store() -> analysis_session_store.AnalysisSessionStore:
@@ -272,6 +374,8 @@ def start_a_analysis_session(
             "relationshipDbId": relationship.id,
             "eventId": None,
             "eventDbId": None,
+            "canCommit": False,
+            "factSummary": None,
             "messages": [],
             "createdAt": _now().isoformat(),
         }
@@ -302,6 +406,8 @@ def start_b_analysis_session(
             "relationshipDbId": relationship.id,
             "eventId": event.public_id,
             "eventDbId": event.id,
+            "canCommit": False,
+            "factSummary": None,
             "messages": [],
             "createdAt": _now().isoformat(),
         }
@@ -317,7 +423,14 @@ def _save_reply(
     ai_result: dict[str, Any],
 ) -> AnalysisSessionMessageData:
     reply = str(ai_result["content"])
+    can_commit = bool(ai_result.get("can_confirm", False))
+    fact_summary = str(ai_result.get("fact_summary") or "").strip() or None
+    if not can_commit:
+        fact_summary = None
+
     _append_message(session, role="assistant", content=reply)
+    session["canCommit"] = can_commit
+    session["factSummary"] = fact_summary
     _get_store().save_session(_touch_session(session))
     audit_repo.create_ai_call_log(
         db,
@@ -330,7 +443,12 @@ def _save_reply(
         trace_id=session_id,
     )
     db.commit()
-    return AnalysisSessionMessageData(sessionId=session_id, reply=reply)
+    return AnalysisSessionMessageData(
+        sessionId=session_id,
+        reply=reply,
+        canCommit=can_commit,
+        factSummary=fact_summary,
+    )
 
 
 def send_analysis_message(

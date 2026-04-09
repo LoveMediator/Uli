@@ -1,4 +1,4 @@
-"""Event 数据访问。"""
+"""Event data access."""
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,7 +18,7 @@ def create_event(
     public_id: str,
     relationship_id: int,
     initiator_user_id: int,
-    title: str,
+    title: str | None,
 ) -> Event:
     event = Event(
         public_id=public_id,

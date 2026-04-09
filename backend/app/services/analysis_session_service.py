@@ -70,15 +70,35 @@ def _append_message(session: dict[str, Any], *, role: str, content: str) -> None
     )
 
 
+def _infer_reply_language(session: dict[str, Any]) -> str:
+    for item in reversed(session.get("messages", [])):
+        if item.get("role") != "user":
+            continue
+        content = str(item.get("content", "")).strip()
+        if not content:
+            continue
+        if any("\u4e00" <= ch <= "\u9fff" for ch in content):
+            return "简体中文"
+        if any(ch.isascii() and ch.isalpha() for ch in content):
+            return "English"
+    return "简体中文"
+
+
 def _build_private_prompt(session: dict[str, Any], message: str) -> str:
     history_lines = [
         f"{item['role']}: {item['content']}"
         for item in session.get("messages", [])[-8:]
     ]
     history = "\n".join(history_lines)
+    reply_language = _infer_reply_language(session)
     return (
-        "You are a private mediation assistant. Help the user整理事实、澄清情绪、抽取观点，"
-        "但不要推进业务状态。\n"
+        "You are LoveMediator's private mediation assistant.\n"
+        "你是 LoveMediator 的私有调解分析助手。\n"
+        "Help the user organize facts, clarify emotions, and identify viewpoints without "
+        "advancing business state or pretending the event is committed.\n"
+        f"Mandatory reply language: {reply_language}.\n"
+        "If the mandatory reply language is 简体中文, reply only in 简体中文.\n"
+        "If the mandatory reply language is English, reply only in English.\n"
         f"phase={session['phase']}\n"
         f"history=\n{history}\n"
         f"user={message}"

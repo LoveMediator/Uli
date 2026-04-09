@@ -49,7 +49,7 @@ def test_get_month_summary_forbidden():
             year=2026,
             month=2,
         )
-    assert ex.value.code == "2002"
+    assert ex.value.code == 2002
 
 
 def test_get_day_reviews_maps_event_and_review(monkeypatch):
@@ -57,7 +57,11 @@ def test_get_day_reviews_maps_event_and_review(monkeypatch):
     db = SimpleNamespace(execute=lambda *_: _ScalarResult(rel))
 
     row = (
-        SimpleNamespace(public_id="rv_1", updated_at=date(2026, 2, 9)),
+        SimpleNamespace(
+            public_id="rv_1",
+            updated_at=date(2026, 2, 9),
+            content="这次争执发生在吃饭时。对方用玩笑语气说了伤人的话。",
+        ),
         SimpleNamespace(public_id="ev_1", title="2月争吵"),
     )
     monkeypatch.setattr(calendar_service.review_repo, "get_review_items_by_date", lambda *_: [row])
@@ -70,3 +74,4 @@ def test_get_day_reviews_maps_event_and_review(monkeypatch):
     )
     assert data.items[0].review_id == "rv_1"
     assert data.items[0].event_id == "ev_1"
+    assert data.items[0].title == "2月争吵"

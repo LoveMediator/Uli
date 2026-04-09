@@ -46,6 +46,8 @@ def test_start_a_analysis_session_success(client):
         phase="a",
         relationshipId="rel_1",
         expiresAt=datetime(2026, 3, 27, tzinfo=UTC),
+        canCommit=False,
+        factSummary=None,
         messages=[],
     )
     with patch("app.services.analysis_session_chat_service.start_a_analysis_session", return_value=data):
@@ -54,6 +56,8 @@ def test_start_a_analysis_session_success(client):
     body = response.json()
     assert body["data"]["sessionId"] == "sess_a_1"
     assert body["data"]["phase"] == "a"
+    assert body["data"]["canCommit"] is False
+    assert body["data"]["factSummary"] is None
 
 
 def test_start_b_analysis_session_success(client):
@@ -63,10 +67,12 @@ def test_start_b_analysis_session_success(client):
         relationshipId="rel_1",
         eventId="ev_1",
         expiresAt=datetime(2026, 3, 27, tzinfo=UTC),
+        canCommit=True,
+        factSummary="Both sides argued about housework distribution.",
         messages=[
             AnalysisSessionMessagePayload(
                 role="assistant",
-                content="先说说你的视角。",
+                content="Here is the factual version I can organize so far.",
                 createdAt=datetime(2026, 3, 27, tzinfo=UTC),
             )
         ],
@@ -77,18 +83,26 @@ def test_start_b_analysis_session_success(client):
     body = response.json()
     assert body["data"]["eventId"] == "ev_1"
     assert body["data"]["messages"][0]["role"] == "assistant"
+    assert body["data"]["canCommit"] is True
 
 
 def test_send_analysis_message_success(client):
-    data = AnalysisSessionMessageData(sessionId="sess_a_1", reply="我们先把事实分开。")
+    data = AnalysisSessionMessageData(
+        sessionId="sess_a_1",
+        reply="I can now summarize the facts for your confirmation.",
+        canCommit=True,
+        factSummary="You argued about chores after both of you felt overburdened.",
+    )
     with patch("app.services.analysis_session_chat_service.send_analysis_message", return_value=data):
         response = client.post(
             "/api/v1/analysis-sessions/sess_a_1/messages",
-            json={"message": "我想先整理一下这次争执。"},
+            json={"message": "Please help me sort out what happened."},
         )
     assert response.status_code == 200
     body = response.json()
-    assert body["data"]["reply"] == "我们先把事实分开。"
+    assert body["data"]["reply"] == "I can now summarize the facts for your confirmation."
+    assert body["data"]["canCommit"] is True
+    assert body["data"]["factSummary"] == "You argued about chores after both of you felt overburdened."
 
 
 def test_commit_analysis_session_success(client):
@@ -107,7 +121,12 @@ def test_commit_analysis_session_success(client):
 
 
 def test_send_analysis_image_message_success(client):
-    data = AnalysisSessionMessageData(sessionId="sess_a_1", reply="[MOCK] image analyzed")
+    data = AnalysisSessionMessageData(
+        sessionId="sess_a_1",
+        reply="I need one more detail before we confirm the facts.",
+        canCommit=False,
+        factSummary=None,
+    )
     with patch("app.services.analysis_session_chat_service.send_analysis_image_message", return_value=data):
         response = client.post(
             "/api/v1/analysis-sessions/sess_a_1/images",
@@ -116,7 +135,8 @@ def test_send_analysis_image_message_success(client):
         )
     assert response.status_code == 200
     body = response.json()
-    assert body["data"]["reply"] == "[MOCK] image analyzed"
+    assert body["data"]["reply"] == "I need one more detail before we confirm the facts."
+    assert body["data"]["canCommit"] is False
 
 
 def test_get_analysis_image_success(client):

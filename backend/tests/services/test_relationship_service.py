@@ -73,6 +73,7 @@ def test_accept_relationship_invite_reuses_existing_relationship(monkeypatch):
 def test_list_relationships_success(monkeypatch):
     current_user = SimpleNamespace(id=1, public_id="u_1", username="alice")
     relationship = SimpleNamespace(
+        id=1,
         public_id="rel_1",
         user_a_id=1,
         user_b_id=2,

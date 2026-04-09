@@ -14,10 +14,11 @@ class _Store:
         self.scoped: dict[tuple[str, str, int], dict] = {}
 
     def save_session(self, session: dict) -> None:
-        self.sessions[session["sessionId"]] = dict(session)
+        stored = dict(session)
+        self.sessions[session["sessionId"]] = stored
         scope_id = session.get("eventId") or session.get("relationshipId")
         if scope_id:
-            self.scoped[(session["phase"], scope_id, int(session["userId"]))] = dict(session)
+            self.scoped[(session["phase"], scope_id, int(session["userId"]))] = stored
 
     def get_session(self, session_id: str) -> dict | None:
         session = self.sessions.get(session_id)
@@ -56,7 +57,7 @@ def test_start_a_analysis_session_rejects_open_event(monkeypatch):
     assert ex.value.code == 1003
 
 
-def test_send_analysis_message_appends_reply(monkeypatch):
+def test_send_analysis_message_appends_reply_and_commit_flag(monkeypatch):
     current_user = SimpleNamespace(id=1, public_id="u_1")
     store = _Store()
     store.save_session(
@@ -67,6 +68,8 @@ def test_send_analysis_message_appends_reply(monkeypatch):
             "userId": 1,
             "relationshipId": "rel_1",
             "eventId": None,
+            "canCommit": False,
+            "factSummary": None,
             "messages": [],
             "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
             "expiresAt": datetime(2026, 3, 28, tzinfo=UTC).isoformat(),
@@ -87,7 +90,9 @@ def test_send_analysis_message_appends_reply(monkeypatch):
             "model_name": "mock-private-chat-v1",
             "input_tokens": 0,
             "output_tokens": 0,
-            "content": "先把事实和感受分开说。",
+            "content": "I can now summarize the facts for your confirmation.",
+            "can_confirm": True,
+            "fact_summary": "You argued about chores after both of you felt overburdened.",
         },
     )
     monkeypatch.setattr(
@@ -96,10 +101,19 @@ def test_send_analysis_message_appends_reply(monkeypatch):
         lambda *_a, **_kw: SimpleNamespace(),
     )
 
-    data = analysis_session_service.send_analysis_message(_DB(), current_user, "sess_1", "我很委屈")
-    assert data.reply == "先把事实和感受分开说。"
+    data = analysis_session_service.send_analysis_message(
+        _DB(),
+        current_user,
+        "sess_1",
+        "Please help me sort out what happened.",
+    )
+    assert data.reply == "I can now summarize the facts for your confirmation."
+    assert data.can_commit is True
+    assert data.fact_summary == "You argued about chores after both of you felt overburdened."
     saved = store.get_session("sess_1")
     assert len(saved["messages"]) == 2
+    assert saved["canCommit"] is True
+    assert saved["factSummary"] == "You argued about chores after both of you felt overburdened."
     assert calls["committed"] == 1
 
 
@@ -114,6 +128,8 @@ def test_send_analysis_image_message_appends_image(monkeypatch):
             "userId": 1,
             "relationshipId": "rel_1",
             "eventId": None,
+            "canCommit": False,
+            "factSummary": None,
             "messages": [],
             "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
             "expiresAt": datetime(2026, 3, 28, tzinfo=UTC).isoformat(),
@@ -132,7 +148,9 @@ def test_send_analysis_image_message_appends_image(monkeypatch):
             "model_name": "mock-private-chat-v1",
             "input_tokens": 0,
             "output_tokens": 0,
-            "content": "[MOCK] image reply",
+            "content": "I still need one more detail.",
+            "can_confirm": False,
+            "fact_summary": None,
         }
 
     monkeypatch.setattr(analysis_session_service, "_get_store", lambda: store)
@@ -156,7 +174,8 @@ def test_send_analysis_image_message_appends_image(monkeypatch):
         image_bytes=b"png-bytes",
         message="look at this",
     )
-    assert data.reply == "[MOCK] image reply"
+    assert data.reply == "I still need one more detail."
+    assert data.can_commit is False
     saved = store.get_session("sess_img")
     assert saved["messages"][0]["images"][0]["mimeType"] == "image/png"
     assert calls["committed"] == 1
@@ -165,6 +184,36 @@ def test_send_analysis_image_message_appends_image(monkeypatch):
     user_message = llm_messages[-1]
     assert isinstance(user_message["content"], list)
     assert user_message["content"][1]["type"] == "image_url"
+
+
+def test_build_private_messages_prioritizes_latest_concrete_turn():
+    session = {
+        "phase": "b",
+        "messages": [
+            {
+                "role": "user",
+                "content": "??????",
+                "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
+            },
+            {
+                "role": "assistant",
+                "content": "Take a breath first.",
+                "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
+            },
+            {
+                "role": "user",
+                "content": "我的男朋友说我是猪",
+                "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
+            },
+        ],
+    }
+
+    messages = analysis_session_service._build_private_messages(session)
+    assert len(messages) == 2
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"] == "我的男朋友说我是猪"
+    assert "Do not switch into breathing" in messages[0]["content"]
+    assert "latest_message_is_concrete=true" in messages[0]["content"]
 
 
 def test_get_analysis_image_success(monkeypatch):
@@ -212,6 +261,38 @@ def test_get_analysis_image_success(monkeypatch):
     assert filename == "shot.png"
 
 
+def test_commit_analysis_session_requires_fact_summary(monkeypatch):
+    current_user = SimpleNamespace(id=1, public_id="u_1")
+    store = _Store()
+    store.save_session(
+        {
+            "sessionId": "sess_a",
+            "phase": "a",
+            "status": "active",
+            "userId": 1,
+            "relationshipId": "rel_1",
+            "eventId": None,
+            "canCommit": False,
+            "factSummary": None,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "We argued about chores.",
+                    "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
+                }
+            ],
+            "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
+            "expiresAt": datetime(2026, 3, 28, tzinfo=UTC).isoformat(),
+            "updatedAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
+        }
+    )
+    monkeypatch.setattr(analysis_session_service, "_get_store", lambda: store)
+
+    with pytest.raises(AppError) as ex:
+        analysis_session_service.commit_analysis_session(SimpleNamespace(), current_user, "sess_a")
+    assert ex.value.code == 1003
+
+
 def test_commit_a_analysis_session_creates_event_and_snapshot(monkeypatch):
     current_user = SimpleNamespace(id=1, public_id="u_1")
     relationship = SimpleNamespace(public_id="rel_1", id=10, user_a_id=1, user_b_id=2)
@@ -224,8 +305,14 @@ def test_commit_a_analysis_session_creates_event_and_snapshot(monkeypatch):
             "userId": 1,
             "relationshipId": "rel_1",
             "eventId": None,
+            "canCommit": True,
+            "factSummary": "Both sides argued about housework distribution.",
             "messages": [
-                {"role": "user", "content": "这次我们因为家务分配吵起来了。", "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat()}
+                {
+                    "role": "user",
+                    "content": "We argued because I felt the chores were uneven.",
+                    "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
+                }
             ],
             "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
             "expiresAt": datetime(2026, 3, 28, tzinfo=UTC).isoformat(),
@@ -309,8 +396,14 @@ def test_commit_b_analysis_session_generates_judge(monkeypatch):
             "userId": 2,
             "relationshipId": "rel_1",
             "eventId": "ev_1",
+            "canCommit": True,
+            "factSummary": "One side felt ignored after a long workday and the other responded defensively.",
             "messages": [
-                {"role": "user", "content": "我觉得他忽略了我的疲惫。", "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat()}
+                {
+                    "role": "user",
+                    "content": "I felt ignored when they dismissed how tired I was.",
+                    "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
+                }
             ],
             "createdAt": datetime(2026, 3, 27, tzinfo=UTC).isoformat(),
             "expiresAt": datetime(2026, 3, 28, tzinfo=UTC).isoformat(),

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.repos import review_repo
 from app.schemas.calendar import CalendarDayCount, CalendarDayReviewsData, CalendarMonthData
 from app.schemas.review import ReviewListItem
+from app.utils.event_titles import build_event_display_title
 from app.utils.permissions import assert_relationship_member
 
 
@@ -55,7 +56,7 @@ def get_day_reviews(
         ReviewListItem(
             reviewId=review.public_id,
             eventId=event.public_id,
-            title=event.title,
+            title=build_event_display_title(event.title, getattr(review, "content", None)),
             updatedAt=review.updated_at,
         )
         for review, event in rows
