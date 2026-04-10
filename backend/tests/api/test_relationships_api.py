@@ -67,7 +67,7 @@ def test_accept_relationship_invite_success(client):
     with patch("app.services.relationship_service.accept_relationship_invite", return_value=data):
         r = client.post(
             "/api/v1/relationships/accept",
-            json={"inviteToken": "invite-token"},
+            json={"inviteToken": "invite-token-xxxxxxxxxxxx"},
         )
     assert r.status_code == 200
     body = r.json()
@@ -136,7 +136,7 @@ def test_confirm_relationship_cancel_success(client):
     with patch("app.services.relationship_service.confirm_relationship_cancel", return_value=data):
         r = client.post(
             "/api/v1/relationships/rel_1/cancel-confirm",
-            json={"cancelToken": "cancel-token"},
+            json={"cancelToken": "cancel-token-xxxxxxxxxxxx"},
         )
     assert r.status_code == 200
     body = r.json()

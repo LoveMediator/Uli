@@ -9,9 +9,12 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.db.session import SessionLocal
 from app.models.event import Event
+from app.models.judge import JudgeResult
 from app.models.relationship import Relationship
+from app.models.snapshot import EventSnapshot
 from app.models.user import User
-from app.constants.enums import EventStatus, RelationshipStatus, UserStatus
+from app.constants.enums import EventStatus, RelationshipStatus, SnapshotSide, UserStatus
+from app.utils.ids import generate_public_id
 
 
 # 为了可重复执行（幂等），seed 使用固定 public_id + username。
@@ -118,6 +121,65 @@ def ensure_event(
     return event
 
 
+def _ensure_snapshot(
+    db: Session,
+    *,
+    event_id: int,
+    side: SnapshotSide,
+    confirmed_by_user_id: int,
+    summary: str,
+    points_a: list[str],
+    points_b: list[str],
+) -> EventSnapshot:
+    stmt = select(EventSnapshot).where(EventSnapshot.event_id == event_id, EventSnapshot.side == side)
+    snap = db.execute(stmt).scalar_one_or_none()
+    if snap is not None:
+        return snap
+
+    snap = EventSnapshot(
+        public_id=generate_public_id(),
+        event_id=event_id,
+        side=side,
+        summary=summary,
+        points_a=points_a,
+        points_b=points_b,
+        is_frozen=True,
+        confirmed_by_user_id=confirmed_by_user_id,
+    )
+    db.add(snap)
+    db.flush()
+    return snap
+
+
+def _ensure_judge_result(
+    db: Session,
+    *,
+    event_id: int,
+    objective_summary: str,
+    triggers: list[str],
+    misunderstandings: list[str],
+    advice_for_a: list[str],
+    advice_for_b: list[str],
+) -> JudgeResult:
+    stmt = select(JudgeResult).where(JudgeResult.event_id == event_id)
+    judge = db.execute(stmt).scalar_one_or_none()
+    if judge is not None:
+        return judge
+
+    judge = JudgeResult(
+        public_id=generate_public_id(),
+        event_id=event_id,
+        objective_summary=objective_summary,
+        triggers=triggers,
+        misunderstandings=misunderstandings,
+        advice_for_a=advice_for_a,
+        advice_for_b=advice_for_b,
+    )
+    db.add(judge)
+    db.flush()
+    return judge
+
+
 def seed_db() -> None:
     db = SessionLocal()
     try:
@@ -141,8 +203,8 @@ def seed_db() -> None:
             title=SEED_EVENT_DRAFT["title"],
         )
 
-        # A 提交后：waiting_b
-        ensure_event(
+        # A 提交后：waiting_b（含 Snapshot_A）
+        ev_wb = ensure_event(
             db,
             public_id=SEED_EVENT_WAITING_B["public_id"],
             relationship_id=rel.id,
@@ -150,9 +212,19 @@ def seed_db() -> None:
             status=SEED_EVENT_WAITING_B["status"],
             title=SEED_EVENT_WAITING_B["title"],
         )
+        # 确保 waiting_b 事件有 Snapshot_A
+        _ensure_snapshot(
+            db,
+            event_id=ev_wb.id,
+            side=SnapshotSide.A,
+            confirmed_by_user_id=user_a.id,
+            summary="seed: alice 认为双方因家务分工产生分歧，争吵发生在厨房。",
+            points_a=["我认为应该轮流做饭", "我觉得她不够公平"],
+            points_b=["她认为我应该每天做饭", "她觉得我不够体贴"],
+        )
 
-        # 可选：judged / reviewed（用于后续联调跳过状态机前置）
-        ensure_event(
+        # 可选：judged（含 Snapshot_A + Snapshot_B + JudgeResult）
+        ev_j = ensure_event(
             db,
             public_id=SEED_EVENT_JUDGED["public_id"],
             relationship_id=rel.id,
@@ -160,6 +232,35 @@ def seed_db() -> None:
             status=SEED_EVENT_JUDGED["status"],
             title=SEED_EVENT_JUDGED["title"],
         )
+        _ensure_snapshot(
+            db,
+            event_id=ev_j.id,
+            side=SnapshotSide.A,
+            confirmed_by_user_id=user_a.id,
+            summary="seed: alice 认为因外出计划产生矛盾。",
+            points_a=["我想周末去爬山", "我提前一周说了"],
+            points_b=["她想周末休息", "她说我没提前说"],
+        )
+        _ensure_snapshot(
+            db,
+            event_id=ev_j.id,
+            side=SnapshotSide.B,
+            confirmed_by_user_id=user_b.id,
+            summary="seed: bob 认为 alice 临时改变计划。",
+            points_a=["她想去爬山但我太累了", "她没有考虑我的感受"],
+            points_b=["我只想在家休息", "我觉得她总是自作主张"],
+        )
+        _ensure_judge_result(
+            db,
+            event_id=ev_j.id,
+            objective_summary="seed: 双方因周末计划不一致产生矛盾，核心在于沟通不充分。",
+            triggers=["计划冲突", "沟通不足"],
+            misunderstandings=["alice 以为 bob 同意了", "bob 以为 alice 会改主意"],
+            advice_for_a=["提前协商", "尊重对方的休息需求"],
+            advice_for_b=["明确表达需求", "不要消极回避"],
+        )
+
+        # reviewed
         ensure_event(
             db,
             public_id=SEED_EVENT_REVIEWED["public_id"],

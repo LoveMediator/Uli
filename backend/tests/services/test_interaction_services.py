@@ -33,21 +33,37 @@ def test_followup_chat_success(monkeypatch):
         def add(self, obj):
             self.added.append(obj)
 
+        def flush(self):
+            pass
+
         def commit(self):
             self.commit_count += 1
 
     db = _DB()
     monkeypatch.setattr(
-        followup_service,
-        "build_context",
+        "app.services.followup_service.build_context",
         lambda *_args, **_kwargs: SimpleNamespace(
-            meta={"recentMessages": 1, "snapshots": 2, "judgeResults": 1}
+            meta={"recentMessages": 1, "snapshots": 2, "judgeResults": 1},
+            snapshot_a=None,
+            snapshot_b=None,
+            judge_result=None,
+            review_content=None,
+            recent_messages=[],
         ),
     )
     monkeypatch.setattr(
         followup_service.followup_repo,
         "create_followup_message",
         lambda *_args, **_kwargs: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        "app.services.followup_service.ai_service.call_chat_llm",
+        lambda *_args, **_kwargs: {
+            "content": "mock reply",
+            "model_name": "mock-model",
+            "input_tokens": 10,
+            "output_tokens": 5,
+        },
     )
 
     resp = followup_service.followup_chat(db, user_id=10, event_public_id="ev_1", message="hello")
@@ -85,7 +101,7 @@ def test_elf_relay_forbidden_when_target_not_in_relationship(monkeypatch):
             target_user_public_id="u_out",
             raw_message="msg",
         )
-    assert ex.value.code == "2002"
+    assert ex.value.code == 2002
 
 
 def test_elf_moderate_success(monkeypatch):
@@ -94,6 +110,13 @@ def test_elf_moderate_success(monkeypatch):
     class _DB:
         def __init__(self):
             self.commit_count = 0
+            self.added = []
+
+        def add(self, obj):
+            self.added.append(obj)
+
+        def flush(self):
+            pass
 
         def commit(self):
             self.commit_count += 1
@@ -127,4 +150,4 @@ def test_followup_chat_prereq_not_met():
     db = _DB()
     with pytest.raises(AppError) as ex:
         followup_service.followup_chat(db, user_id=10, event_public_id="ev_1", message="hello")
-    assert ex.value.code == "3003"
+    assert ex.value.code == 3003

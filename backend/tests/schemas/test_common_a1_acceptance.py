@@ -66,6 +66,11 @@ def test_all_api_prefixed_routes_use_envelope_response_model() -> None:
         except TypeError:
             return False
 
+    # 二进制返回端点（图片/文件下载），不使用 JSON 信封是合理设计
+    binary_return_paths = {
+        "/api/v1/analysis-sessions/{session_id}/images/{image_id}",
+    }
+
     violations: list[str] = []
     for route in app.routes:
         if not isinstance(route, APIRoute):
@@ -73,6 +78,8 @@ def test_all_api_prefixed_routes_use_envelope_response_model() -> None:
         if not route.path.startswith("/api"):
             continue
         if not route.include_in_schema:
+            continue
+        if route.path in binary_return_paths:
             continue
         if route.response_model is None or not _is_envelope_model(route.response_model):
             methods = ",".join(sorted(route.methods))

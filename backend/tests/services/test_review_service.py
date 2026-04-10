@@ -34,7 +34,7 @@ def test_get_review_forbidden(monkeypatch):
 
     with pytest.raises(AppError) as ex:
         review_service.get_review(db, user_id=99, review_public_id="rv_1")
-    assert ex.value.code == "2002"
+    assert ex.value.code == 2002
 
 
 def test_update_review_writes_version(monkeypatch):

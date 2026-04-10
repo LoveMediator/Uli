@@ -1,29 +1,6 @@
 import type { EventStatusValue } from './enums';
 
-export interface CreateEventRequest {
-  title: string;
-  relationshipId: string;
-}
-
-export interface CreateEventData {
-  eventId: string;
-  status: EventStatusValue;
-}
-
-export interface CommitARequest {
-  confirmText: string;
-}
-
-export interface CommitAData {
-  eventId: string;
-  status: EventStatusValue;
-  snapshotAId: string;
-}
-
-export interface StartAnalysisSessionARequest {
-  eventId?: string;
-  title?: string;
-}
+/* ── Analysis Session (新正式流程) ── */
 
 export interface AnalysisSessionImagePayload {
   imageId: string;
@@ -44,6 +21,8 @@ export interface AnalysisSessionData {
   relationshipId: string | null;
   eventId: string | null;
   expiresAt: string;
+  canCommit: boolean;
+  factSummary: string | null;
   messages: AnalysisSessionMessagePayload[];
 }
 
@@ -54,6 +33,8 @@ export interface AnalysisSessionMessageRequest {
 export interface AnalysisSessionMessageData {
   sessionId: string;
   reply: string;
+  canCommit: boolean;
+  factSummary: string | null;
 }
 
 export interface AnalysisSessionCommitData {
@@ -64,6 +45,8 @@ export interface AnalysisSessionCommitData {
   snapshotBId: string | null;
   judgeResultId: string | null;
 }
+
+/* ── Invite / Snapshot ── */
 
 export interface InviteData {
   eventId: string;
@@ -85,6 +68,8 @@ export interface SnapshotAData {
   snapshotA: SnapshotPayload;
 }
 
+/* ── B-Agree ── */
+
 export interface BAgreeRequest {
   agree: boolean;
 }
@@ -95,18 +80,7 @@ export interface BAgreeData {
   judgeResultId: string;
 }
 
-export interface CommitBRequest {
-  summary: string;
-  pointsA: string[];
-  pointsB: string[];
-}
-
-export interface CommitBData {
-  eventId: string;
-  status: EventStatusValue;
-  snapshotBId: string;
-  judgeResultId: string;
-}
+/* ── Judge Result ── */
 
 export interface JudgeAnalysis {
   triggers: string[];
@@ -123,6 +97,8 @@ export interface JudgeResultData {
   analysis: JudgeAnalysis;
   createdAt: string;
 }
+
+/* ── Followup Chat ── */
 
 export interface FollowupRequest {
   message: string;

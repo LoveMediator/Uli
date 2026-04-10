@@ -6,12 +6,6 @@ import type {
   AnalysisSessionMessageRequest,
   BAgreeData,
   BAgreeRequest,
-  CommitAData,
-  CommitARequest,
-  CommitBData,
-  CommitBRequest,
-  CreateEventData,
-  CreateEventRequest,
   FollowupRequest,
   FollowupResponse,
   InviteData,
@@ -20,16 +14,6 @@ import type {
   RelayMessageResponse,
   SnapshotAData,
 } from '@/shared/api/types';
-
-/**
- * POST /events
- * Deprecated compatibility endpoint.
- * Still used to preserve the existing draft-title flow before A-side analysis starts.
- */
-export async function createEvent(data: CreateEventRequest) {
-  const response = await apiClient.post('/events', data);
-  return unwrapResponse<CreateEventData>(response);
-}
 
 /**
  * POST /relationships/{relationshipId}/analysis-sessions/a
@@ -70,15 +54,6 @@ export async function commitAnalysisSession(sessionId: string) {
 }
 
 /**
- * POST /events/{eventId}/commit-a
- * Deprecated compatibility endpoint kept for legacy fallback only.
- */
-export async function commitA(eventId: string, data: CommitARequest) {
-  const response = await apiClient.post(`/events/${eventId}/commit-a`, data);
-  return unwrapResponse<CommitAData>(response);
-}
-
-/**
  * GET /events/{eventId}/invite
  * Reads the public invite information for one event.
  */
@@ -103,15 +78,6 @@ export async function getSnapshotA(eventId: string) {
 export async function bAgree(eventId: string, data: BAgreeRequest) {
   const response = await apiClient.post(`/events/${eventId}/b-agree`, data);
   return unwrapResponse<BAgreeData>(response);
-}
-
-/**
- * POST /events/{eventId}/commit-b
- * Deprecated compatibility endpoint kept for legacy fallback only.
- */
-export async function commitB(eventId: string, data: CommitBRequest) {
-  const response = await apiClient.post(`/events/${eventId}/commit-b`, data);
-  return unwrapResponse<CommitBData>(response);
 }
 
 /**
@@ -142,16 +108,13 @@ export async function relayMessage(data: RelayMessageRequest) {
 }
 
 export const mediationApi = {
-  createEvent,
   startAAnalysisSession,
   startBAnalysisSession,
   sendAnalysisMessage,
   commitAnalysisSession,
-  commitA,
   getInvite,
   getSnapshotA,
   bAgree,
-  commitB,
   getJudgeResult,
   sendFollowupMessage,
   relayMessage,
