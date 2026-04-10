@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Bot, CheckCircle2, Copy, Heart, MessageCircle, RefreshCcw, Send, Sparkles } from 'lucide-react';
+import { Bot, CheckCircle2, Copy, Heart, MessageCircle, RefreshCcw, Sparkles } from 'lucide-react';
 import { useAuthStore } from '@/domains/auth';
 import { mediationApi } from '@/domains/mediation/api/mediation-api';
 import { useCurrentEvent } from '@/domains/mediation/model/use-current-event';
+import { AnalysisChatPanel } from '@/domains/mediation/ui/AnalysisChatPanel';
 import { FollowupChat } from '@/domains/mediation/ui/FollowupChat';
 import { JudgeResultCard } from '@/domains/mediation/ui/JudgeResultCard';
 import type { AnalysisSessionMessagePayload } from '@/shared/api/types';
@@ -28,86 +29,44 @@ export function MediationPage() {
 
   /* ── 分析会话状态 ── */
   const [sessionId, setSessionId] = useState<string | null>(currentEvent?.sessionId ?? null);
-  const [messages, setMessages] = useState<AnalysisSessionMessagePayload[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [canCommit, setCanCommit] = useState(false);
-  const [factSummary, setFactSummary] = useState<string | null>(null);
+  const [sessionInitialMessages, setSessionInitialMessages] = useState<AnalysisSessionMessagePayload[]>([]);
+  const [sessionInitialCanCommit, setSessionInitialCanCommit] = useState(false);
+  const [sessionInitialFactSummary, setSessionInitialFactSummary] = useState<string | null>(null);
 
   /* ── 小精灵转达 ── */
   const [relayTargetUserId, setRelayTargetUserId] = useState('');
   const [relayMessage, setRelayMessage] = useState('');
   const [relayResult, setRelayResult] = useState('');
 
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = useCallback(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
-
   /* ── 开启 A 侧分析会话 ── */
   const startSessionMutation = useMutation({
     mutationFn: () => mediationApi.startAAnalysisSession(relationshipId),
     onSuccess: (data) => {
       setSessionId(data.sessionId);
-      setMessages(data.messages);
-      setCanCommit(data.canCommit);
-      setFactSummary(data.factSummary);
+      setSessionInitialMessages(data.messages);
+      setSessionInitialCanCommit(data.canCommit);
+      setSessionInitialFactSummary(data.factSummary);
     },
   });
 
-  /* ── 发消息 ── */
-  const sendMessageMutation = useMutation({
-    mutationFn: (message: string) =>
-      mediationApi.sendAnalysisMessage(sessionId!, { message }),
-    onSuccess: (data, sentMessage) => {
-      const now = new Date().toISOString();
-      setMessages((prev) => [
-        ...prev,
-        { role: 'user', content: sentMessage, createdAt: now, images: [] },
-        { role: 'assistant', content: data.reply, createdAt: now, images: [] },
-      ]);
-      setCanCommit(data.canCommit);
-      setFactSummary(data.factSummary);
-      setInputText('');
-    },
-  });
-
-  /* ── Commit 分析会话 ── */
-  const commitSessionMutation = useMutation({
-    mutationFn: () => mediationApi.commitAnalysisSession(sessionId!),
-    onSuccess: (data) => {
-      setCurrentEvent({
-        eventId: data.eventId,
-        title: factSummary ?? '分析已提交',
-        status: data.status,
-        sessionId: sessionId ?? undefined,
-        snapshotAId: data.snapshotAId ?? undefined,
-      });
-      setSessionId(null);
-      setMessages([]);
-      setCanCommit(false);
-      setFactSummary(null);
-    },
-  });
-
-  /* ── 查询裁判结果 ── */
+  /* ── 查询裁判结果（#6 修复：改用 useQuery + refetch） ── */
   const judgeQuery = useQuery({
     queryKey: ['judge-result', currentEvent?.eventId],
     queryFn: () => mediationApi.getJudgeResult(currentEvent!.eventId),
-    enabled: currentEvent?.status === EventStatus.judged,
+    enabled: !!currentEvent && currentEvent.status === EventStatus.judged,
   });
 
-  /* ── 查看裁判结果（A 等待 B 处理时手动刷新） ── */
-  const refreshJudgeMutation = useMutation({
-    mutationFn: () => mediationApi.getJudgeResult(currentEvent!.eventId),
-    onSuccess: () => {
-      patchCurrentEvent({ status: EventStatus.judged });
-    },
-  });
+  /* ── 手动刷新裁判结果 ── */
+  const handleRefreshJudge = async () => {
+    try {
+      const result = await judgeQuery.refetch();
+      if (result.data) {
+        patchCurrentEvent({ status: EventStatus.judged });
+      }
+    } catch {
+      // error 由 judgeQuery.error 展示
+    }
+  };
 
   /* ── 小精灵代转达 ── */
   const relayMutation = useMutation({
@@ -124,12 +83,6 @@ export function MediationPage() {
   });
 
   const inviteLink = currentEvent ? `${window.location.origin}/invite/${currentEvent.eventId}` : '';
-
-  const handleSend = () => {
-    const text = inputText.trim();
-    if (!text || !sessionId || sendMessageMutation.isPending) return;
-    void sendMessageMutation.mutateAsync(text);
-  };
 
   /* ── 分析会话已开启但还没 commit ── */
   const isInAnalysisPhase = sessionId !== null && !currentEvent;
@@ -198,12 +151,12 @@ export function MediationPage() {
                     <Copy className="mr-2 h-4 w-4" />
                     复制链接
                   </Button>
-                  <Button fullWidth variant="ghost" onClick={() => void refreshJudgeMutation.mutateAsync()}>
-                    {refreshJudgeMutation.isPending ? <LoadingSpinner /> : <RefreshCcw className="mr-2 h-4 w-4" />}
+                  <Button fullWidth variant="ghost" onClick={() => void handleRefreshJudge()}>
+                    {judgeQuery.isFetching ? <LoadingSpinner /> : <RefreshCcw className="mr-2 h-4 w-4" />}
                     检查结果
                   </Button>
                 </div>
-                {refreshJudgeMutation.error ? <p className="text-sm font-semibold text-red-400">{getErrorMessage(refreshJudgeMutation.error)}</p> : null}
+                {judgeQuery.error ? <p className="text-sm font-semibold text-red-400">{getErrorMessage(judgeQuery.error)}</p> : null}
               </div>
             ) : null}
 
@@ -256,62 +209,24 @@ export function MediationPage() {
 
         ) : isInAnalysisPhase ? (
           /* ── 分析会话对话界面 ── */
-          <>
-            {messages.map((msg, index) => (
-              <div key={`${msg.role}-${index}`} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                {msg.role === 'assistant' ? (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-milk-300 shadow-sm">
-                    🤖
-                  </div>
-                ) : null}
-                <div
-                  className={
-                    msg.role === 'assistant'
-                      ? 'max-w-[82%] rounded-2xl rounded-tl-none border border-milk-50 bg-white p-3.5 text-sm leading-7 text-coffee-800 shadow-sm'
-                      : 'max-w-[82%] rounded-2xl rounded-tr-none bg-coffee-100 p-3.5 text-sm leading-7 text-coffee-900 shadow-sm'
-                  }
-                >
-                  {msg.content}
-                </div>
-              </div>
-            ))}
-
-            {sendMessageMutation.isPending ? (
-              <div className="flex gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-milk-300 shadow-sm">
-                  🤖
-                </div>
-                <div className="flex items-center gap-2 rounded-2xl rounded-tl-none border border-milk-50 bg-white px-4 py-3 shadow-sm">
-                  <LoadingSpinner />
-                  <span className="text-sm text-coffee-800/60">AI 正在思考...</span>
-                </div>
-              </div>
-            ) : null}
-
-            {canCommit && factSummary ? (
-              <Card className="space-y-3 border-accent-pink/30 bg-accent-pink/5">
-                <div className="flex items-center gap-2 text-coffee-900">
-                  <CheckCircle2 className="h-4 w-4 text-accent-pink" />
-                  <span className="text-sm font-bold">AI 认为事实已整理清楚，可以提交了</span>
-                </div>
-                <div className="rounded-2xl bg-white px-4 py-3 text-sm leading-7 text-coffee-800">
-                  <p className="mb-1 text-xs font-bold text-coffee-800/40">事实摘要</p>
-                  {factSummary}
-                </div>
-                {commitSessionMutation.error ? (
-                  <p className="text-sm font-semibold text-red-400">{getErrorMessage(commitSessionMutation.error)}</p>
-                ) : null}
-                <Button
-                  fullWidth
-                  disabled={commitSessionMutation.isPending}
-                  onClick={() => void commitSessionMutation.mutateAsync()}
-                >
-                  {commitSessionMutation.isPending ? <LoadingSpinner /> : '确认提交，邀请对方参与'}
-                </Button>
-              </Card>
-            ) : null}
-            <div ref={chatEndRef} />
-          </>
+          <AnalysisChatPanel
+            sessionId={sessionId}
+            initialMessages={sessionInitialMessages}
+            initialCanCommit={sessionInitialCanCommit}
+            initialFactSummary={sessionInitialFactSummary}
+            commitLabel="确认提交，邀请对方参与"
+            inputPlaceholder="跟 AI 说说发生了什么..."
+            onCommitted={(data) => {
+              setCurrentEvent({
+                eventId: data.eventId,
+                title: '分析已提交',
+                status: data.status,
+                sessionId: sessionId ?? undefined,
+                snapshotAId: data.snapshotAId ?? undefined,
+              });
+              setSessionId(null);
+            }}
+          />
 
         ) : (
           /* ── 初始：开始分析按钮 ── */
@@ -341,33 +256,8 @@ export function MediationPage() {
         ) : null}
       </div>
 
-      {/* ── 底部输入栏（分析阶段可见） ── */}
-      {isInAnalysisPhase ? (
-        <div className="absolute bottom-[85px] left-0 right-0 z-20 px-4">
-          <div className="flex items-center gap-2 rounded-[24px] border border-milk-100 bg-white p-2 shadow-lg">
-            <input
-              className="flex-1 bg-transparent px-3 py-2 text-sm text-coffee-800 outline-none placeholder:text-coffee-800/40"
-              placeholder="跟 AI 说说发生了什么..."
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              disabled={sendMessageMutation.isPending}
-            />
-            <button
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-coffee-800 text-white transition-colors hover:bg-coffee-900 disabled:opacity-40"
-              disabled={!inputText.trim() || sendMessageMutation.isPending}
-              onClick={handleSend}
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      ) : (
+      {/* ── 底部提示栏（非分析阶段） ── */}
+      {!isInAnalysisPhase ? (
         <div className="absolute bottom-[85px] left-0 right-0 z-20 px-4">
           <div className="flex items-center gap-2 rounded-[24px] border border-milk-100 bg-white p-2 shadow-lg">
             <div className="rounded-full bg-milk-100 p-2 text-coffee-800">
@@ -379,7 +269,7 @@ export function MediationPage() {
             <MessageCircle className="h-5 w-5 text-coffee-800/40" />
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

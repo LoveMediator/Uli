@@ -125,7 +125,7 @@ def get_snapshot_a(
     return event, snapshot
 
 
-def _execute_judge(
+def execute_judge(
     db: Session,
     event: Event,
     rel: Relationship,
@@ -264,7 +264,7 @@ def b_agree(
     if snapshot_a is None:
         raise AppError("Snapshot_A 不存在，无法裁判", code=PREREQ_NOT_MET)
 
-    judge_result = _execute_judge(db, event, rel, snapshot_a, None, user_id)
+    judge_result = execute_judge(db, event, rel, snapshot_a, None, user_id)
     return event, judge_result
 
 
@@ -302,7 +302,7 @@ def commit_b(
         confirmed_by_user_id=user_id,
     )
 
-    judge_result = _execute_judge(db, event, rel, snapshot_a, snapshot_b, user_id)
+    judge_result = execute_judge(db, event, rel, snapshot_a, snapshot_b, user_id)
     db.refresh(snapshot_b)
     return event, snapshot_b, judge_result
 

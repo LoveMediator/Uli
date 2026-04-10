@@ -1,3 +1,6 @@
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -5,13 +8,20 @@ from sqlalchemy import text
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import router
 from app.core.config import settings
+from app.core.kimi_client import close_kimi_client
 from app.core.logging import setup_logging
 from app.db.session import SessionLocal
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    yield
+    close_kimi_client()
+
+
 def create_app() -> FastAPI:
     setup_logging()
-    app = FastAPI(title="Backend Service", version="0.1.0")
+    app = FastAPI(title="Backend Service", version="0.1.0", lifespan=lifespan)
     register_exception_handlers(app)
     origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
     if origins:

@@ -6,6 +6,8 @@ import json
 from typing import Any, TypeVar
 
 import httpx
+
+from app.core.kimi_client import get_kimi_client
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
@@ -31,51 +33,38 @@ def _is_kimi_k2_family(model_name: str) -> bool:
     return normalized.startswith("kimi-k2")
 
 
-def _extract_text_content(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        text_parts: list[str] = []
-        for item in content:
-            if isinstance(item, dict) and item.get("type") == "text":
-                text_parts.append(str(item.get("text", "")))
-        return "\n".join(part for part in text_parts if part)
-    return str(content or "")
-
-
-def _request_chat_completion(
+def kimi_chat_completion(
     *,
     messages: list[dict[str, Any]],
-    model_name: str | None = None,
-    temperature: float = 0.3,
+    model: str,
+    temperature: float | None = None,
 ) -> dict[str, Any]:
+    """底层 Kimi API 调用：发送请求、处理错误、解析响应。
+
+    返回 {"model_name", "input_tokens", "output_tokens", "raw_content"}。
+    调用方自行决定如何处理 raw_content（可能为空字符串）。
+    """
     if not settings.kimi_api_key:
         raise AppError("Kimi API Key 未配置", code=5000)
 
-    resolved_model = _resolve_model(model_name)
-    request_payload = {
-        "model": resolved_model,
+    request_payload: dict[str, Any] = {
+        "model": model,
         "messages": messages,
     }
-    if _is_kimi_k2_family(resolved_model):
+    if _is_kimi_k2_family(model):
         request_payload["thinking"] = {"type": "disabled"}
-    else:
+    elif temperature is not None:
         request_payload["temperature"] = temperature
+
     try:
-        with httpx.Client(
-            base_url=settings.kimi_base_url,
-            timeout=60.0,
-            trust_env=False,
-            verify=False,  # TODO: 生产环境应移除此行。开发环境中系统代理 MITM 会替换 SSL 证书导致失败
-        ) as client:
-            response = client.post(
-                "/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.kimi_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=request_payload,
-            )
+        response = get_kimi_client().post(
+            "/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.kimi_api_key}",
+                "Content-Type": "application/json",
+            },
+            json=request_payload,
+        )
     except httpx.TimeoutException as exc:
         raise AppError("Kimi 请求超时，请稍后重试", code=5000) from exc
     except httpx.HTTPError as exc:
@@ -104,15 +93,48 @@ def _request_chat_completion(
         raise AppError("Kimi 未返回可用结果", code=5000)
 
     message = choices[0].get("message", {})
-    content = _extract_text_content(message.get("content")).strip()
-    if not content:
-        raise AppError("Kimi 未返回可用文本内容", code=5000)
-
+    raw_content = extract_text_content(message.get("content")).strip()
     usage = payload.get("usage", {})
     return {
-        "model_name": resolved_model,
+        "model_name": model,
         "input_tokens": int(usage.get("prompt_tokens", 0) or 0),
         "output_tokens": int(usage.get("completion_tokens", 0) or 0),
+        "raw_content": raw_content,
+    }
+
+
+def extract_text_content(content: Any) -> str:
+    """从 Kimi 响应的 content 字段中提取纯文本（兼容 string / list-of-blocks 两种格式）。"""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text_parts.append(str(item.get("text", "")))
+        return "\n".join(part for part in text_parts if part)
+    return str(content or "")
+
+
+def _request_chat_completion(
+    *,
+    messages: list[dict[str, Any]],
+    model_name: str | None = None,
+    temperature: float = 0.3,
+) -> dict[str, Any]:
+    resolved_model = _resolve_model(model_name)
+    result = kimi_chat_completion(
+        messages=messages,
+        model=resolved_model,
+        temperature=temperature,
+    )
+    content = result["raw_content"]
+    if not content:
+        raise AppError("Kimi 未返回可用文本内容", code=5000)
+    return {
+        "model_name": result["model_name"],
+        "input_tokens": result["input_tokens"],
+        "output_tokens": result["output_tokens"],
         "content": content,
     }
 

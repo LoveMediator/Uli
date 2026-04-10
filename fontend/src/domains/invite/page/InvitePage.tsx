@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowRight, CheckCircle2, Send } from 'lucide-react';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '@/domains/auth';
 import { FollowupChat, JudgeResultCard, mediationApi } from '@/domains/mediation';
+import { AnalysisChatPanel } from '@/domains/mediation/ui/AnalysisChatPanel';
 import type { AnalysisSessionMessagePayload } from '@/shared/api/types';
 import { EventStatus } from '@/shared/api/types';
 import { getErrorMessage } from '@/shared/lib';
@@ -25,21 +26,10 @@ export function InvitePage() {
 
   /* ── B 侧分析会话状态 ── */
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<AnalysisSessionMessagePayload[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [canCommit, setCanCommit] = useState(false);
-  const [factSummary, setFactSummary] = useState<string | null>(null);
+  const [sessionInitialMessages, setSessionInitialMessages] = useState<AnalysisSessionMessagePayload[]>([]);
+  const [sessionInitialCanCommit, setSessionInitialCanCommit] = useState(false);
+  const [sessionInitialFactSummary, setSessionInitialFactSummary] = useState<string | null>(null);
   const [resultReady, setResultReady] = useState(false);
-
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = useCallback(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
 
   /* ── 查询邀请信息 ── */
   const inviteQuery = useQuery({
@@ -66,35 +56,9 @@ export function InvitePage() {
     mutationFn: () => mediationApi.startBAnalysisSession(eventId),
     onSuccess: (data) => {
       setSessionId(data.sessionId);
-      setMessages(data.messages);
-      setCanCommit(data.canCommit);
-      setFactSummary(data.factSummary);
-    },
-  });
-
-  /* ── B 发消息 ── */
-  const sendMessageMutation = useMutation({
-    mutationFn: (message: string) =>
-      mediationApi.sendAnalysisMessage(sessionId!, { message }),
-    onSuccess: (data, sentMessage) => {
-      const now = new Date().toISOString();
-      setMessages((prev) => [
-        ...prev,
-        { role: 'user', content: sentMessage, createdAt: now, images: [] },
-        { role: 'assistant', content: data.reply, createdAt: now, images: [] },
-      ]);
-      setCanCommit(data.canCommit);
-      setFactSummary(data.factSummary);
-      setInputText('');
-    },
-  });
-
-  /* ── B Commit 分析会话 ── */
-  const commitBSessionMutation = useMutation({
-    mutationFn: () => mediationApi.commitAnalysisSession(sessionId!),
-    onSuccess: () => {
-      setResultReady(true);
-      setSessionId(null);
+      setSessionInitialMessages(data.messages);
+      setSessionInitialCanCommit(data.canCommit);
+      setSessionInitialFactSummary(data.factSummary);
     },
   });
 
@@ -107,12 +71,6 @@ export function InvitePage() {
       isAuthenticated &&
       (resultReady || inviteQuery.data?.status === EventStatus.judged),
   });
-
-  const handleSend = () => {
-    const text = inputText.trim();
-    if (!text || !sessionId || sendMessageMutation.isPending) return;
-    void sendMessageMutation.mutateAsync(text);
-  };
 
   const isInBAnalysis = sessionId !== null;
 
@@ -207,98 +165,29 @@ export function InvitePage() {
 
           {/* ── B 侧分析会话对话界面 ── */}
           {isInBAnalysis ? (
-            <>
-              <Card className="space-y-3">
-                <div className="flex gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-milk-300 shadow-sm">
-                    🤖
-                  </div>
-                  <div className="max-w-[82%] rounded-2xl rounded-tl-none border border-milk-50 bg-white p-3.5 text-sm leading-7 text-coffee-800 shadow-sm">
-                    你好，我来帮你整理你对这件事的看法。告诉我你认为发生了什么，以及你的想法。
-                  </div>
+            <Card className="space-y-3">
+              <div className="flex gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-milk-300 shadow-sm">
+                  🤖
                 </div>
-
-                {messages.map((msg, index) => (
-                  <div key={`${msg.role}-${index}`} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                    {msg.role === 'assistant' ? (
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-milk-300 shadow-sm">
-                        🤖
-                      </div>
-                    ) : null}
-                    <div
-                      className={
-                        msg.role === 'assistant'
-                          ? 'max-w-[82%] rounded-2xl rounded-tl-none border border-milk-50 bg-white p-3.5 text-sm leading-7 text-coffee-800 shadow-sm'
-                          : 'max-w-[82%] rounded-2xl rounded-tr-none bg-coffee-100 p-3.5 text-sm leading-7 text-coffee-900 shadow-sm'
-                      }
-                    >
-                      {msg.content}
-                    </div>
-                  </div>
-                ))}
-
-                {sendMessageMutation.isPending ? (
-                  <div className="flex gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-milk-300 shadow-sm">
-                      🤖
-                    </div>
-                    <div className="flex items-center gap-2 rounded-2xl rounded-tl-none border border-milk-50 bg-white px-4 py-3 shadow-sm">
-                      <LoadingSpinner />
-                      <span className="text-sm text-coffee-800/60">AI 正在思考...</span>
-                    </div>
-                  </div>
-                ) : null}
-                <div ref={chatEndRef} />
-              </Card>
-
-              {/* ── 输入栏 ── */}
-              <div className="flex items-center gap-2 rounded-[24px] border border-milk-100 bg-white p-2 shadow-lg">
-                <input
-                  className="flex-1 bg-transparent px-3 py-2 text-sm text-coffee-800 outline-none placeholder:text-coffee-800/40"
-                  placeholder="跟 AI 说说你的看法..."
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  disabled={sendMessageMutation.isPending}
-                />
-                <button
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-coffee-800 text-white transition-colors hover:bg-coffee-900 disabled:opacity-40"
-                  disabled={!inputText.trim() || sendMessageMutation.isPending}
-                  onClick={handleSend}
-                >
-                  <Send className="h-4 w-4" />
-                </button>
+                <div className="max-w-[82%] rounded-2xl rounded-tl-none border border-milk-50 bg-white p-3.5 text-sm leading-7 text-coffee-800 shadow-sm">
+                  你好，我来帮你整理你对这件事的看法。告诉我你认为发生了什么，以及你的想法。
+                </div>
               </div>
 
-              {/* ── Commit 提示 ── */}
-              {canCommit && factSummary ? (
-                <Card className="space-y-3 border-accent-pink/30 bg-accent-pink/5">
-                  <div className="flex items-center gap-2 text-coffee-900">
-                    <CheckCircle2 className="h-4 w-4 text-accent-pink" />
-                    <span className="text-sm font-bold">AI 认为你的看法已整理清楚，可以提交了</span>
-                  </div>
-                  <div className="rounded-2xl bg-white px-4 py-3 text-sm leading-7 text-coffee-800">
-                    <p className="mb-1 text-xs font-bold text-coffee-800/40">事实摘要</p>
-                    {factSummary}
-                  </div>
-                  {commitBSessionMutation.error ? (
-                    <p className="text-sm font-semibold text-red-400">{getErrorMessage(commitBSessionMutation.error)}</p>
-                  ) : null}
-                  <Button
-                    fullWidth
-                    disabled={commitBSessionMutation.isPending}
-                    onClick={() => void commitBSessionMutation.mutateAsync()}
-                  >
-                    {commitBSessionMutation.isPending ? <LoadingSpinner /> : '提交并生成裁判结果'}
-                  </Button>
-                </Card>
-              ) : null}
-            </>
+              <AnalysisChatPanel
+                sessionId={sessionId}
+                initialMessages={sessionInitialMessages}
+                initialCanCommit={sessionInitialCanCommit}
+                initialFactSummary={sessionInitialFactSummary}
+                commitLabel="提交并生成裁判结果"
+                inputPlaceholder="跟 AI 说说你的看法..."
+                onCommitted={() => {
+                  setResultReady(true);
+                  setSessionId(null);
+                }}
+              />
+            </Card>
           ) : null}
 
           {/* ── 裁判结果 ── */}

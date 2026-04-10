@@ -82,7 +82,7 @@ def create_review_from_judge(
 ) -> Review:
     """judged 后创建 review 并自动入历。
 
-    供 event_service._execute_judge 在裁判完成后调用。
+    供 event_service.execute_judge 在裁判完成后调用。
     本函数只做 flush（不 commit），由调用方统一管理事务边界。
 
     Parameters

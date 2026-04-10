@@ -433,7 +433,7 @@ def test_commit_b_analysis_session_generates_judge(monkeypatch):
     )
     monkeypatch.setattr(
         analysis_session_service.event_service,
-        "_execute_judge",
+        "execute_judge",
         lambda *_a, **_kw: judge,
     )
 

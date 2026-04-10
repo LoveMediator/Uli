@@ -606,7 +606,7 @@ def commit_analysis_session(
         raw_payload=raw_payload,
         confirmed_by_user_id=current_user.id,
     )
-    judge_result = event_service._execute_judge(
+    judge_result = event_service.execute_judge(
         db,
         event,
         relationship,

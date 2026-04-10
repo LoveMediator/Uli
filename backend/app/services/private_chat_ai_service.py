@@ -1,12 +1,17 @@
+"""Private analysis chat LLM service.
+
+Uses the shared kimi_chat_completion() for the HTTP layer,
+adds private-chat-specific model resolution, structured reply parsing,
+and vision/image detection.
+"""
+
 from __future__ import annotations
 
 import json
 from typing import Any
 
-import httpx
-
 from app.core.config import settings
-from app.core.errors import AppError
+from app.services.ai_service import kimi_chat_completion
 
 
 def _count_message_metrics(messages: list[dict[str, Any]]) -> tuple[int, int]:
@@ -47,20 +52,6 @@ def _resolve_model(model_name: str | None, messages: list[dict[str, Any]]) -> st
     if _contains_image(messages):
         return settings.kimi_vision_model
     return settings.kimi_text_model
-
-
-def _extract_text_content(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        text_parts: list[str] = []
-        for item in content:
-            if not isinstance(item, dict):
-                continue
-            if item.get("type") == "text":
-                text_parts.append(str(item.get("text", "")))
-        return "\n".join(part for part in text_parts if part)
-    return str(content or "")
 
 
 def _extract_json_text(content: str) -> str | None:
@@ -127,70 +118,26 @@ def call_private_chat_llm(
     model_name: str = "mock-private-chat-v1",
 ) -> dict[str, Any]:
     """LLM entrypoint for private analysis chat."""
-    if not settings.kimi_api_key:
-        raise AppError("Kimi API Key 未配置", code=5000)
-
     resolved_model = _resolve_model(model_name, messages)
-    request_payload = {
-        "model": resolved_model,
-        "messages": messages,
-    }
-    try:
-        with httpx.Client(
-            base_url=settings.kimi_base_url,
-            timeout=60.0,
-            trust_env=False,
-            verify=False,  # TODO: 生产环境应移除此行。开发环境中系统代理 MITM 会替换 SSL 证书导致失败
-        ) as client:
-            response = client.post(
-                "/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.kimi_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=request_payload,
-            )
-    except httpx.TimeoutException as exc:
-        raise AppError("Kimi 请求超时，请稍后重试", code=5000) from exc
-    except httpx.HTTPError as exc:
-        raise AppError(f"Kimi 服务调用失败：{exc}", code=5000) from exc
 
-    if response.status_code == 401:
-        raise AppError("Kimi API 认证失败，请检查 API Key", code=5000)
-    if response.status_code >= 400:
-        try:
-            error_payload = response.json()
-        except ValueError:
-            error_payload = {"error": {"message": response.text}}
-        error_message = str(
-            error_payload.get("error", {}).get("message")
-            or error_payload.get("message")
-            or response.text
-        )
-        raise AppError(
-            f"Kimi 请求失败：{error_message}",
-            code=1001 if response.status_code < 500 else 5000,
-        )
+    result = kimi_chat_completion(
+        messages=messages,
+        model=resolved_model,
+    )
 
-    payload = response.json()
-    choices = payload.get("choices") or []
-    if not choices:
-        raise AppError("Kimi 未返回可用结果", code=5000)
-
-    message = choices[0].get("message", {})
-    usage = payload.get("usage", {})
+    raw_content = result["raw_content"]
     text_chars, image_count = _count_message_metrics(messages)
-    raw_content = _extract_text_content(message.get("content")).strip()
     if not raw_content:
         raw_content = (
             f"[EMPTY] Kimi returned no text content for {len(messages)} messages, "
             f"{text_chars} text chars, {image_count} images."
         )
+
     content, can_confirm, fact_summary = _parse_structured_private_reply(raw_content)
     return {
-        "model_name": resolved_model,
-        "input_tokens": int(usage.get("prompt_tokens", 0) or 0),
-        "output_tokens": int(usage.get("completion_tokens", 0) or 0),
+        "model_name": result["model_name"],
+        "input_tokens": result["input_tokens"],
+        "output_tokens": result["output_tokens"],
         "content": content,
         "can_confirm": can_confirm,
         "fact_summary": fact_summary,

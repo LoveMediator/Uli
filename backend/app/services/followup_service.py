@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -12,11 +11,11 @@ from app.core.errors import AppError
 from app.repos import audit_repo, followup_repo
 from app.schemas.followup import FollowupContextMeta, FollowupResponse
 from app.services import ai_service
-from app.utils.context_builder import build_context
+from app.utils.context_builder import ContextPayload, build_context
 from app.utils.permissions import get_event_with_permission
 
 
-def _build_followup_system_prompt(ctx: Any) -> str:
+def _build_followup_system_prompt(ctx: ContextPayload) -> str:
     return (
         "You are LoveMediator's follow-up reflection assistant.\n"
         "Reply only from persisted context. Do not invent missing facts.\n"
@@ -31,7 +30,7 @@ def _build_followup_system_prompt(ctx: Any) -> str:
     )
 
 
-def _build_followup_messages(ctx: Any, message: str) -> list[dict[str, str]]:
+def _build_followup_messages(ctx: ContextPayload, message: str) -> list[dict[str, str]]:
     messages: list[dict[str, str]] = [
         {"role": "system", "content": _build_followup_system_prompt(ctx)}
     ]
