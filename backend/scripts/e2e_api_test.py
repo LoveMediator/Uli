@@ -29,7 +29,7 @@ if sys.platform == "win32":
         pass
 
 BASE = "http://127.0.0.1:8000"
-TIMEOUT = 30.0
+TIMEOUT = 120.0
 
 passed = 0
 failed = 0

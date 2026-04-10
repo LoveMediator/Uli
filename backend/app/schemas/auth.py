@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas.validators import reject_null_bytes
 
 
 class RegisterRequest(BaseModel):
@@ -18,6 +20,8 @@ class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=32)
     password: str = Field(min_length=8, max_length=128)
 
+    _no_null = field_validator("username", "password", mode="before")(reject_null_bytes)
+
 
 class LoginRequest(BaseModel):
     """POST /api/v1/auth/login 请求体。"""
@@ -26,6 +30,8 @@ class LoginRequest(BaseModel):
 
     username: str = Field(min_length=3, max_length=32)
     password: str = Field(min_length=8, max_length=128)
+
+    _no_null = field_validator("username", "password", mode="before")(reject_null_bytes)
 
 
 class RefreshRequest(BaseModel):

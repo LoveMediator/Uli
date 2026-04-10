@@ -4,7 +4,9 @@
 字段名与类型严格对齐 API 文档 §5.9。
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas.validators import reject_null_bytes
 
 
 # ---------------------------------------------------------------------------
@@ -15,6 +17,8 @@ class FollowupRequest(BaseModel):
     """复盘聊天请求体。"""
 
     message: str = Field(min_length=1, max_length=5000)
+
+    _no_null = field_validator("message", mode="before")(reject_null_bytes)
 
 
 class FollowupContextMeta(BaseModel):

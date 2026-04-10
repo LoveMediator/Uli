@@ -66,6 +66,7 @@ def _request_chat_completion(
             base_url=settings.kimi_base_url,
             timeout=60.0,
             trust_env=False,
+            verify=False,  # TODO: 生产环境应移除此行。开发环境中系统代理 MITM 会替换 SSL 证书导致失败
         ) as client:
             response = client.post(
                 "/chat/completions",

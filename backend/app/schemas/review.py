@@ -6,7 +6,9 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas.validators import reject_null_bytes
 
 
 # ---------------------------------------------------------------------------
@@ -34,6 +36,8 @@ class ReviewUpdateRequest(BaseModel):
     """编辑复盘请求体。"""
 
     content: str = Field(min_length=1, max_length=10000)
+
+    _no_null = field_validator("content", mode="before")(reject_null_bytes)
 
 
 class ReviewUpdateResponse(BaseModel):

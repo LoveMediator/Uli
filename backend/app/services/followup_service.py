@@ -62,7 +62,7 @@ def followup_chat(
     ctx = build_context(db, user_id, event.id)
     ai_result = ai_service.call_chat_llm(
         messages=_build_followup_messages(ctx, message.strip()),
-        model_name="followup-v1",
+        model_name=None,  # 使用默认 Kimi 模型
         temperature=0.45,
     )
     reply_text = str(ai_result["content"])

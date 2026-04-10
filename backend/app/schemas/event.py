@@ -4,7 +4,9 @@
 字段名与类型严格对齐 API 文档 §5.2 - §5.7。
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas.validators import reject_null_bytes
 
 
 class EventCreateRequest(BaseModel):
@@ -12,6 +14,8 @@ class EventCreateRequest(BaseModel):
 
     title: str = Field(min_length=1, max_length=120)
     relationship_id: str = Field(alias="relationshipId", min_length=1, max_length=40)
+
+    _no_null = field_validator("title", mode="before")(reject_null_bytes)
 
 
 class EventCreateData(BaseModel):
@@ -25,6 +29,8 @@ class CommitARequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     confirm_text: str = Field(alias="confirmText", min_length=1, max_length=5000)
+
+    _no_null = field_validator("confirm_text", mode="before")(reject_null_bytes)
 
 
 class CommitAData(BaseModel):
@@ -93,6 +99,8 @@ class CommitBRequest(BaseModel):
     summary: str = Field(min_length=1, max_length=5000)
     points_a: list[str] = Field(alias="pointsA", max_length=20)
     points_b: list[str] = Field(alias="pointsB", max_length=20)
+
+    _no_null = field_validator("summary", mode="before")(reject_null_bytes)
 
 
 class CommitBData(BaseModel):

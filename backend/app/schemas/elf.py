@@ -4,7 +4,9 @@
 字段名与类型严格对齐 API 文档 §7.1、§7.2。
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas.validators import reject_null_bytes
 
 
 # ---------------------------------------------------------------------------
@@ -19,6 +21,8 @@ class ElfRelayRequest(BaseModel):
     event_id: str = Field(alias="eventId")
     target_user_id: str = Field(alias="targetUserId")
     raw_message: str = Field(alias="rawMessage", min_length=1, max_length=2000)
+
+    _no_null = field_validator("raw_message", mode="before")(reject_null_bytes)
 
 
 class ElfRelayResponse(BaseModel):
@@ -41,6 +45,8 @@ class ModerateRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     raw_message: str = Field(alias="rawMessage", min_length=1, max_length=2000)
+
+    _no_null = field_validator("raw_message", mode="before")(reject_null_bytes)
 
 
 class ModerateResponse(BaseModel):

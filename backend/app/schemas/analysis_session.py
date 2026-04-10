@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas.validators import reject_null_bytes
 
 
 class AnalysisSessionImagePayload(BaseModel):
@@ -39,6 +41,8 @@ class AnalysisSessionMessageRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     message: str = Field(min_length=1, max_length=5000)
+
+    _no_null = field_validator("message", mode="before")(reject_null_bytes)
 
 
 class AnalysisSessionMessageData(BaseModel):
