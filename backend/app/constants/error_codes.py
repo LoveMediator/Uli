@@ -1,4 +1,4 @@
-# 与 docs/API_LoveMediator_v1.md §2.4 对齐（整型错误码）
+# 与 docs/API_Uli_v1.md §2.4 对齐（整型错误码）
 
 INVALID_PARAMS = 1001
 NOT_FOUND = 1002

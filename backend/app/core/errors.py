@@ -1,6 +1,6 @@
 """应用业务异常与错误码映射（任务 A2）。
 
-错误码口径：`docs/API_LoveMediator_v1.md` §2.4。
+错误码口径：`docs/API_Uli_v1.md` §2.4。
 HTTP 状态码：在 `http_status_for_code` 中按语义映射，响应体仍为统一 envelope。
 """
 

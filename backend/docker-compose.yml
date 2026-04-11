@@ -2,17 +2,17 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: lovemediator-postgres
+    container_name: uli-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: pass
-      POSTGRES_DB: lovemediator_dev
+      POSTGRES_DB: uli_dev
     ports:
       - "5433:5432"
     volumes:
-      - lovemediator_pgdata:/var/lib/postgresql/data
+      - uli_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d lovemediator_dev"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d uli_dev"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: lovemediator-redis
+    container_name: uli-redis
     ports:
       - "6380:6379"
     healthcheck:
@@ -30,4 +30,4 @@ services:
       retries: 5
 
 volumes:
-  lovemediator_pgdata:
+  uli_pgdata:

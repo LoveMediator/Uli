@@ -1,4 +1,4 @@
-﻿# Models 说明文档（与 docs/DB_LoveMediator_v1.md 对齐）
+# Models 说明文档（与 docs/DB_Uli_v1.md 对齐）
 
 ## 1. users
 - id: 主键

@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
-  title: LoveMediator API
+  title: Uli API
   version: 1.0.0
   description: |
-    OpenAPI standard file generated from `docs/API_LoveMediator_v1.md`.
+    OpenAPI standard file generated from `docs/API_Uli_v1.md`.
     All path identifiers such as `eventId`, `reviewId`, `relationshipId`, and `userId`
     refer to public IDs rather than database primary keys.
 
@@ -1581,3 +1581,4 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/ElfModerateData'
+

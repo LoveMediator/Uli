@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { CurrentEventSession } from '@/domains/mediation';
 import { DEFAULT_RELATIONSHIP_ID } from '@/shared/config/env';
+import { migrateLegacyPersistedState } from '@/shared/lib/persist-migration';
 
 export type AppState = {
   relationshipId: string;
@@ -15,6 +16,8 @@ export type AppState = {
   setHomeOverlayOpen: (open: boolean) => void;
   setCalendarExpanded: (expanded: boolean) => void;
 };
+
+migrateLegacyPersistedState('uli-app', ['love-mediator-app']);
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -34,7 +37,7 @@ export const useAppStore = create<AppState>()(
       setCalendarExpanded: (calendarExpanded) => set({ calendarExpanded }),
     }),
     {
-      name: 'love-mediator-app',
+      name: 'uli-app',
       partialize: (state) => ({
         relationshipId: state.relationshipId,
         currentEvent: state.currentEvent,

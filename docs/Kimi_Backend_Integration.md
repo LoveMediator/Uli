@@ -1,7 +1,7 @@
 # Kimi 后端接入笔记
 
 更新时间：2026-03-27  
-适用范围：LoveMediator 后端私聊分析能力接入  
+适用范围：Uli 后端私聊分析能力接入  
 资料来源：Moonshot / Kimi 官方站点公开资料
 
 ## 1. 这份文档解决什么问题
@@ -96,7 +96,7 @@ completion = client.chat.completions.create(
 
 ### 3.2 当前项目应该怎么组织上下文
 
-对 LoveMediator 的推荐方式：
+对 Uli 的推荐方式：
 
 1. `analysis_session_service` 按 `sessionId` 读取 Redis 会话
 2. 取出最近若干轮 `user/assistant` 消息
@@ -205,7 +205,7 @@ messages = [
 
 ### 5.2 对当前私聊场景的判断
 
-LoveMediator 当前私聊场景里，每次变化最大的内容其实是：
+Uli 当前私聊场景里，每次变化最大的内容其实是：
 
 - 用户最新发言
 - 当前会话最近几轮消息
@@ -330,7 +330,7 @@ LoveMediator 当前私聊场景里，每次变化最大的内容其实是：
 
 ## 9. 结论
 
-对当前 LoveMediator 后端来说，最稳的路线是：
+对当前 Uli 后端来说，最稳的路线是：
 
 - 用 Kimi 的 OpenAI 兼容接口接入真实模型
 - API Key 只放后端

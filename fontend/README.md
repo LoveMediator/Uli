@@ -1,6 +1,6 @@
-# LoveMediator Frontend
+# Uli Frontend
 
-React + TypeScript + Vite frontend for the LoveMediator app.
+React + TypeScript + Vite frontend for the Uli app.
 
 ## Commands
 
@@ -51,9 +51,9 @@ domains/<name>/
 - `shared` must stay reusable and should not depend on domain business logic.
 - New code must live under `src/app`, `src/shared`, or `src/domains`.
 - `dist` is a build artifact, not a maintenance target.
-- Persist keys stay unchanged:
-  - `love-mediator-auth`
-  - `love-mediator-app`
+- Persist keys use the new Uli namespace and migrate legacy browser data automatically:
+  - `uli-auth`
+  - `uli-app`
 
 ## Build Output Structure
 

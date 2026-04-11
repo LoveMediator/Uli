@@ -1,8 +1,8 @@
-# LoveMediator 数据库设计文档（DB v1.0）
+# Uli 数据库设计文档（DB v1.0）
 
 ## 1. 文档信息
-- 对应功能文档：`docs/FD_LoveMediator_v1.md`
-- 对应接口文档：`docs/API_LoveMediator_v1.md`
+- 对应功能文档：`docs/FD_Uli_v1.md`
+- 对应接口文档：`docs/API_Uli_v1.md`
 - 数据库：PostgreSQL 16+
 - 命名规范：表/字段使用 `snake_case`
 - 时间规范：统一 `timestamptz`（UTC）

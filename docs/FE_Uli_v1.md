@@ -1,13 +1,13 @@
-# LoveMediator 前端技术文档（FE v1.0）
+# Uli 前端技术文档（FE v1.0）
 
 ## 1. 文档信息
 
 | 项目 | 内容 |
 |------|------|
-| **对应功能文档** | `docs/FD_LoveMediator_v1.md` |
-| **对应接口文档** | `docs/API_LoveMediator_v1.md` |
-| **对应数据库文档** | `docs/DB_LoveMediator_v1.md` |
-| **对应架构文档** | `docs/LoveMediator_ARCH.md` |
+| **对应功能文档** | `docs/FD_Uli_v1.md` |
+| **对应接口文档** | `docs/API_Uli_v1.md` |
+| **对应数据库文档** | `docs/DB_Uli_v1.md` |
+| **对应架构文档** | `docs/Uli_ARCH.md` |
 | **UI 原型** | `demo.html`（单文件样板，仅供视觉参考） |
 | **技术栈** | TypeScript + React 18 + Vite + Tailwind CSS 3 |
 | **目标平台** | Mobile-first H5 / PWA |
@@ -43,7 +43,7 @@
 
 ### 2.3 与架构文档的差异说明
 
-架构文档 (`LoveMediator_ARCH.md`) 中前端选型为 Next.js + Shadcn UI。实际开发采用 **React + Vite** 方案，原因：
+架构文档 (`Uli_ARCH.md`) 中前端选型为 Next.js + Shadcn UI。实际开发采用 **React + Vite** 方案，原因：
 
 - MVP 阶段无 SSR/SEO 强需求，SPA 开发效率更高。
 - Vite 冷启动与 HMR 极快，适合快速迭代。
@@ -471,7 +471,7 @@ LoginPage / RegisterPage
 └── SwitchLink（"没有账号？去注册" / "已有账号？去登录"）
 ```
 
-**校验规则**（与 `FD_LoveMediator_v1.md` §4.2 对齐）：
+**校验规则**（与 `FD_Uli_v1.md` §4.2 对齐）：
 
 | 字段 | 校验 |
 |------|------|
@@ -609,7 +609,7 @@ interface ApiError {
 
 ### 8.3 错误码前端映射
 
-基于 `API_LoveMediator_v1.md` §2.4：
+基于 `API_Uli_v1.md` §2.4：
 
 | code | 前端处理 |
 |------|----------|
@@ -976,8 +976,8 @@ const ReviewReport = lazy(() => import('./components/business/mediation/ReviewRe
 
 ```json
 {
-  "name": "LoveMediator - 温馨情侣调解",
-  "short_name": "LoveMediator",
+  "name": "Uli - 温馨情侣调解",
+  "short_name": "Uli",
   "description": "AI 驱动的情侣关系调解工具",
   "start_url": "/",
   "display": "standalone",
@@ -1023,7 +1023,7 @@ export default defineConfig({
 ```bash
 # .env.example (frontend)
 VITE_API_BASE_URL=http://localhost:8000/api/v1
-VITE_APP_TITLE=LoveMediator
+VITE_APP_NAME=Uli
 ```
 
 所有前端环境变量以 `VITE_` 前缀，通过 `import.meta.env` 访问。禁止在前端环境变量中放置任何密钥。

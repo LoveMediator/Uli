@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { migrateLegacyPersistedState } from '@/shared/lib/persist-migration';
 import type { AuthSession } from './types';
 
 type AuthActions = {
@@ -24,6 +25,8 @@ const initialState: AuthSession = {
   usernameDraft: '',
   isAuthenticated: false,
 };
+
+migrateLegacyPersistedState('uli-auth', ['love-mediator-auth']);
 
 export const useAuthStore = create<AuthSession & AuthActions>()(
   persist(
@@ -59,7 +62,7 @@ export const useAuthStore = create<AuthSession & AuthActions>()(
         })),
     }),
     {
-      name: 'love-mediator-auth',
+      name: 'uli-auth',
       partialize: (state) => ({
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,

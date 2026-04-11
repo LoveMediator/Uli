@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '@/domains/auth/model/use-auth';
+import { APP_NAME } from '@/shared/config/env';
 import { DeviceFrame } from '@/shared/layout';
 import { Button, Card, Input, LoadingSpinner } from '@/shared/ui';
 
@@ -45,7 +46,7 @@ export function RegisterPage() {
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-coffee-800/40">Create Account</p>
-              <h1 className="text-3xl font-extrabold text-coffee-900">加入 LoveMediator</h1>
+              <h1 className="text-3xl font-extrabold text-coffee-900">加入 {APP_NAME}</h1>
             </div>
           </div>
           <p className="mt-4 max-w-sm text-sm leading-7 text-coffee-800/70">
