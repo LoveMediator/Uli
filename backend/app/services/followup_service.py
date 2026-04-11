@@ -78,7 +78,7 @@ from app.services import ai_service
 
 def _build_followup_system_prompt(ctx) -> str:
     return (
-        "你是 LoveMediator 的复盘陪伴助手。\n"
+        "你是 Uli 的复盘陪伴助手。\n"
         "你只能基于已落库的上下文回复，不能编造数据库里没有的事实。\n"
         "你的目标是帮助用户复盘、理解冲突、形成下一步沟通策略。\n"
         "回复要求：\n"

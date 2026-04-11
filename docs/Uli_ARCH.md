@@ -1,4 +1,4 @@
-# LoveMediator 技术开发文档（商业工程版）
+# Uli 技术开发文档（商业工程版）
 
 ---
 
@@ -26,12 +26,12 @@
 
 | 项目 | 内容 |
 |------|------|
-| **文档标题** | LoveMediator 全栈技术架构文档 |
+| **文档标题** | Uli 全栈技术架构文档 |
 | **文档版本** | v3.1 (Integration Release) |
 | **适用阶段** | MVP 开发 → 商业化上线 |
 | **核心目标** | 为 AI 辅助编程工具 (Cursor) 提供包含商业背景、核心架构、数据模型及防御性编程规范的完整上下文。 |
 | **目标读者** | 开发（含 AI 辅助）、产品、技术评审、运维 |
-| **修订历史** | v3.0 → v3.1：全局一致性整合；Part 6 增加 6.5 标准响应与错误处理、X-Trace-Id 响应头、6.6 API 契约编号顺延；Part 8/9 安全与运维红队补全；错误码与 .env 配置与第八/九节对齐。v3.1 后续：**以 DB/API/FD 三份功能文档为基准**对 ARCH 进行替换与优化——数据模型与接口契约（Part 6）改为以 **DB_LoveMediator_v1**（events、event_snapshots、judge_results、event_status 等）与 **API_LoveMediator_v1**（统一响应 code/message/data、错误码、路径）为准；核心流程（Part 7）与 **FD_LoveMediator_v1** 状态机与流程一致；全文 Case/Verdict 等术语统一为 Event/JudgeResult（judge_results）、event_status、public_id 等。v3.2：**前端技术栈由 Next.js + Shadcn UI 调整为 TypeScript + React 18 + Vite 5 + Tailwind CSS 3**，新增 **FE_LoveMediator_v1** 前端技术文档；ARCH 中 Part 5（架构与技术栈）、Part 9（前端目录结构与可观测性）同步更新以反映实际前端选型。 |
+| **修订历史** | v3.0 → v3.1：全局一致性整合；Part 6 增加 6.5 标准响应与错误处理、X-Trace-Id 响应头、6.6 API 契约编号顺延；Part 8/9 安全与运维红队补全；错误码与 .env 配置与第八/九节对齐。v3.1 后续：**以 DB/API/FD 三份功能文档为基准**对 ARCH 进行替换与优化——数据模型与接口契约（Part 6）改为以 **DB_Uli_v1**（events、event_snapshots、judge_results、event_status 等）与 **API_Uli_v1**（统一响应 code/message/data、错误码、路径）为准；核心流程（Part 7）与 **FD_Uli_v1** 状态机与流程一致；全文 Case/Verdict 等术语统一为 Event/JudgeResult（judge_results）、event_status、public_id 等。v3.2：**前端技术栈由 Next.js + Shadcn UI 调整为 TypeScript + React 18 + Vite 5 + Tailwind CSS 3**，新增 **FE_Uli_v1** 前端技术文档；ARCH 中 Part 5（架构与技术栈）、Part 9（前端目录结构与可观测性）同步更新以反映实际前端选型。 |
 
 ---
 
@@ -133,13 +133,13 @@
 
 ### 5.1 高层架构
 
-采用 **React (Vite SPA) + FastAPI + Celery** 的前后端分离全异步架构。MVP 阶段**客户端为 Web（H5 + PWA）**，由 React + Vite 构建的 SPA 交付；详见 4.4 MVP 交付形态，前端详细设计见 `FE_LoveMediator_v1.md`。
+采用 **React (Vite SPA) + FastAPI + Celery** 的前后端分离全异步架构。MVP 阶段**客户端为 Web（H5 + PWA）**，由 React + Vite 构建的 SPA 交付；详见 4.4 MVP 交付形态，前端详细设计见 `FE_Uli_v1.md`。
 
 ### 5.2 分层说明
 
 | 层级 | 名称 | 职责与要点 |
 |------|------|------------|
-| **客户端接入层 (Client Access)** | React SPA (Vite) + 分享与拉新 | Mobile-first SPA，React Router 路由、Zustand 状态管理、TanStack Query 服务端缓存、Tailwind CSS 样式。B 通过分享链接进入邀请页，完成注册/登录后查看 A 的控诉并继续回应。微信分享 OG 信息由后端 API 或独立预渲染服务提供。详见 `FE_LoveMediator_v1.md`。 |
+| **客户端接入层 (Client Access)** | React SPA (Vite) + 分享与拉新 | Mobile-first SPA，React Router 路由、Zustand 状态管理、TanStack Query 服务端缓存、Tailwind CSS 样式。B 通过分享链接进入邀请页，完成注册/登录后查看 A 的控诉并继续回应。微信分享 OG 信息由后端 API 或独立预渲染服务提供。详见 `FE_Uli_v1.md`。 |
 | **API 网关与编排层 (Orchestration)** | FastAPI | 鉴权（JWT + `CurrentActiveUser` 依赖注入）、统一 `ApiEnvelope` 响应、全局异常处理（`exception_handlers.py`）、状态机流转（`event_service.py`）。**设计中 / 未实现**：Privacy Middleware（PII 出站掩码）、CORS 中间件、请求限速中间件。 |
 | **智能服务层 (Intelligence Service)** | Prompt + LLM | Prompt Engine：基于 Jinja2 的模板管理，Prompt 与代码解耦。Structured Output：Instructor 或 Pydantic 校验 LLM 输出，确保 100% JSON 格式安全。 |
 | **数据持久层 (Persistence)** | PostgreSQL (Supabase) + pgvector | 业务数据存储；pgvector 存历史判决 Embedding，用于情感日历的冲突聚类（如「本月第 3 次因家务争吵」）。 |
@@ -163,7 +163,7 @@
 
 ## 六、数据模型与接口契约 (Data Model & API Contract)
 
-**本节以《DB_LoveMediator_v1》与《API_LoveMediator_v1》为基准**，数据模型、枚举、表结构与 API 契约与上述两文档保持一致；详细建表与约束见 DB 文档，接口请求/响应示例见 API 文档。
+**本节以《DB_Uli_v1》与《API_Uli_v1》为基准**，数据模型、枚举、表结构与 API 契约与上述两文档保持一致；详细建表与约束见 DB 文档，接口请求/响应示例见 API 文档。
 
 ### 6.1 设计要点
 
@@ -335,7 +335,7 @@
 
 ## 七、核心流程与业务逻辑 (Core Flows & Business Logic)
 
-**本节与《FD_LoveMediator_v1》流程、状态机一致**；数据对象与表以 DB 为准（Event、event_snapshots、judge_results）。
+**本节与《FD_Uli_v1》流程、状态机一致**；数据对象与表以 DB 为准（Event、event_snapshots、judge_results）。
 
 **红队评审：原文档漏洞（已在本节补全）**
 
@@ -655,9 +655,9 @@ services:
   postgres:
     image: pgvector/pgvector:pg16   # 或 ankane/pgvector:latest，需与本地 PG 主版本一致
     environment:
-      POSTGRES_USER: lovemediator
+      POSTGRES_USER: uli
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB: lovemediator
+      POSTGRES_DB: uli
     ports:
       - "5432:5432"
     volumes:
@@ -716,7 +716,7 @@ volumes:
 
 | 变量名 | 说明 | 推荐默认值（与 10.5 对齐） |
 |--------|------|----------------------------|
-| **DATABASE_URL** | PostgreSQL 连接串（含 pgvector） | `postgresql://user:pass@localhost:5432/lovemediator` |
+| **DATABASE_URL** | PostgreSQL 连接串（含 pgvector） | `postgresql://user:pass@localhost:5432/uli` |
 | **REDIS_URL** | Redis 连接串（限流、缓存、会话） | `redis://localhost:6379/0` |
 | **SECRET_KEY** | JWT 签名与 Session 通用密钥 | 至少 32 字节随机字符串 |
 | **OPENAI_API_KEY**（或所用 LLM 提供商 Key） | 判决/摘要等 LLM 调用 | 占位，部署时填入 |

@@ -2,7 +2,7 @@
 
 ## Prerequisites
 - Python 3.11+
-- **本机 PostgreSQL**（默认 `localhost:5432`；用 pgAdmin 建空库 `lovemediator_dev`）
+- **本机 PostgreSQL**（默认 `localhost:5432`；用 pgAdmin 建空库 `uli_dev`）
 - Redis（本机 `6379` 或下文 Docker；仅跑 HTTP API 可先不启）
 
 ## Windows：尚未安装 PostgreSQL 时（winget 方案 A）
@@ -27,11 +27,11 @@ Get-Service *postgres*
 Start-Service postgresql-x64-17
 ```
 
-5. 打开 **Stack Builder** 或安装时自带的 **pgAdmin**，连接 `localhost:5432`，新建数据库 **`lovemediator_dev`**。
+5. 打开 **Stack Builder** 或安装时自带的 **pgAdmin**，连接 `localhost:5432`，新建数据库 **`uli_dev`**。
 
 ## 本机库（推荐默认流程）
 
-1. 确认 PostgreSQL 服务已 **Running**，在 pgAdmin 中 **Create Database** → 名称 **`lovemediator_dev`**（只建库，不手建表）。
+1. 确认 PostgreSQL 服务已 **Running**，在 pgAdmin 中 **Create Database** → 名称 **`uli_dev`**（只建库，不手建表）。
 2. `cd backend`，复制环境变量并改密码：
 
 ```powershell

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '@/domains/auth/model/use-auth';
+import { APP_NAME } from '@/shared/config/env';
 import { DeviceFrame } from '@/shared/layout';
 import { Button, Card, Input, LoadingSpinner } from '@/shared/ui';
 
@@ -43,7 +44,7 @@ export function LoginPage() {
               <HeartHandshake className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.3em] text-coffee-800/40">LoveMediator</p>
+              <p className="text-xs font-bold uppercase tracking-[0.3em] text-coffee-800/40">{APP_NAME}</p>
               <h1 className="text-3xl font-extrabold text-coffee-900">欢迎回来</h1>
             </div>
           </div>

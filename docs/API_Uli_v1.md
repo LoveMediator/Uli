@@ -1,7 +1,7 @@
-# LoveMediator API 设计文档（API v1.0）
+# Uli API 设计文档（API v1.0）
 
 ## 1. 文档信息
-- 对应功能文档：`docs/FD_LoveMediator_v1.md`
+- 对应功能文档：`docs/FD_Uli_v1.md`
 - API 前缀：`/api/v1`
 - 数据格式：`application/json; charset=utf-8`
 - 鉴权方式：Bearer JWT（`Authorization: Bearer <access_token>`）
