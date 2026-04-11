@@ -4,7 +4,9 @@ import App from './App';
 import { preloadCriticalRoute, preloadSecondaryRoutes } from './app/routes/route-preload';
 import './shared/styles/index.css';
 
-await preloadCriticalRoute(window.location.pathname);
+const currentPathname = window.location.pathname;
+
+await preloadCriticalRoute(currentPathname);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -12,4 +14,4 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-void preloadSecondaryRoutes();
+preloadSecondaryRoutes(currentPathname);

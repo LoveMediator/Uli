@@ -7,20 +7,20 @@ import { useAuthStore } from '@/domains/auth';
 import { homeApi } from '@/domains/home/api/home-api';
 import { useHomeOverlay } from '@/domains/home/model/use-home-overlay';
 import { getErrorMessage } from '@/shared/lib';
-import { Button, Modal, Textarea } from '@/shared/ui';
+import { Button, LoadingSpinner, Modal, Textarea } from '@/shared/ui';
 
 export function HomePage() {
   const navigate = useNavigate();
-  const username = useAuthStore((state) => state.usernameDraft) || '小红豆';
+  const username = useAuthStore((state) => state.usernameDraft) || '小红薯';
   const relationshipId = useAppStore((state) => state.relationshipId);
   const { homeOverlayOpen, setHomeOverlayOpen } = useHomeOverlay();
   const [message, setMessage] = useState('');
-  const [petReply, setPetReply] = useState('点我，把不好开口的话先告诉我。');
+  const [petReply, setPetReply] = useState('点我一下，把不好开口的话先告诉我。');
 
   const moderateMutation = useMutation({
     mutationFn: homeApi.moderateMessage,
     onSuccess: (data) => {
-      setPetReply(data.suggestedMessage || '这句话已经很温柔啦，可以直接发给对方。');
+      setPetReply(data.suggestedMessage || '这句话已经很温和了，可以直接发给对方。');
       setHomeOverlayOpen(false);
       setMessage('');
     },
@@ -53,7 +53,7 @@ export function HomePage() {
           </div>
           <span className="text-xs font-bold text-coffee-800">Love &amp; Peace</span>
         </div>
-        <button className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-sm">
+        <button type="button" className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-sm">
           <Bell className="h-5 w-5 text-coffee-800" />
           <span className="absolute right-2.5 top-2 h-2 w-2 rounded-full border border-white bg-red-400" />
         </button>
@@ -65,14 +65,15 @@ export function HomePage() {
         </div>
 
         <button
+          type="button"
           className="group relative transition-transform active:scale-95"
           onClick={() => setHomeOverlayOpen(true)}
         >
-          <div className="relative z-10 flex h-44 w-44 items-center justify-center rounded-[4rem] border-4 border-white bg-gradient-to-br from-accent-pink via-milk-300 to-accent-blue text-6xl shadow-float animate-float">
-            🐶
+          <div className="relative z-10 flex h-44 w-44 items-center justify-center rounded-[4rem] border-4 border-white bg-gradient-to-br from-accent-pink via-milk-300 to-accent-blue text-5xl font-black text-coffee-900 shadow-float animate-float">
+            AI
           </div>
           <div className="absolute -right-10 -top-14 rounded-2xl rounded-bl-none bg-white px-4 py-2 shadow-lg animate-wiggle">
-            <p className="text-xs font-bold text-coffee-800">点我！</p>
+            <p className="text-xs font-bold text-coffee-800">点我</p>
           </div>
         </button>
 
@@ -99,7 +100,7 @@ export function HomePage() {
             先让我帮你润一下语气
           </h3>
           <p className="mb-4 text-sm leading-6 text-coffee-800/70">
-            这里只接真实的 `/elf/moderate`，会返回更温和的表达建议。
+            这里会调用真实的 `/elf/moderate`，帮你把表达整理得更温和、更容易被对方接住。
           </p>
           <form
             className="space-y-3"
@@ -120,7 +121,7 @@ export function HomePage() {
             />
             {moderateMutation.error ? <p className="text-sm font-semibold text-red-400">{getErrorMessage(moderateMutation.error)}</p> : null}
             <Button fullWidth type="submit" disabled={moderateMutation.isPending}>
-              <Send className="mr-2 h-4 w-4" />
+              {moderateMutation.isPending ? <LoadingSpinner /> : <Send className="mr-2 h-4 w-4" />}
               获取温和表达
             </Button>
           </form>

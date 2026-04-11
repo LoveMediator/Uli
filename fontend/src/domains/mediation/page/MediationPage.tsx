@@ -9,36 +9,24 @@ import { FollowupChat } from '@/domains/mediation/ui/FollowupChat';
 import { JudgeResultCard } from '@/domains/mediation/ui/JudgeResultCard';
 import type { AnalysisSessionMessagePayload } from '@/shared/api/types';
 import { EventStatus } from '@/shared/api/types';
-import { getErrorMessage } from '@/shared/lib';
-import { Button, Card, Input, LoadingSpinner } from '@/shared/ui';
+import { formatEventStatus, getErrorMessage } from '@/shared/lib';
+import { Button, Card, Input, LoadingSpinner, pushMessage } from '@/shared/ui';
 
-/**
- * MediationPage — A 侧调解室
- *
- * 新流程：
- *   1. 点击「开始分析」→ startAAnalysisSession(relationshipId)
- *   2. 与 AI 多轮对话    → sendAnalysisMessage(sessionId, { message })
- *   3. AI 返回 canCommit=true 后显示 commit 按钮
- *   4. 点击 commit       → commitAnalysisSession(sessionId)
- *      → 后端自动创建 Event + Snapshot_A → waiting_b
- */
 export function MediationPage() {
   const { currentEvent, relationshipId, setCurrentEvent, patchCurrentEvent, clearCurrentEvent } =
     useCurrentEvent();
   const publicId = useAuthStore((state) => state.publicId);
+  const eventStatusLabel = formatEventStatus(currentEvent?.status);
 
-  /* ── 分析会话状态 ── */
   const [sessionId, setSessionId] = useState<string | null>(currentEvent?.sessionId ?? null);
   const [sessionInitialMessages, setSessionInitialMessages] = useState<AnalysisSessionMessagePayload[]>([]);
   const [sessionInitialCanCommit, setSessionInitialCanCommit] = useState(false);
   const [sessionInitialFactSummary, setSessionInitialFactSummary] = useState<string | null>(null);
 
-  /* ── 小精灵转达 ── */
   const [relayTargetUserId, setRelayTargetUserId] = useState('');
   const [relayMessage, setRelayMessage] = useState('');
   const [relayResult, setRelayResult] = useState('');
 
-  /* ── 开启 A 侧分析会话 ── */
   const startSessionMutation = useMutation({
     mutationFn: () => mediationApi.startAAnalysisSession(relationshipId),
     onSuccess: (data) => {
@@ -49,14 +37,12 @@ export function MediationPage() {
     },
   });
 
-  /* ── 查询裁判结果（#6 修复：改用 useQuery + refetch） ── */
   const judgeQuery = useQuery({
     queryKey: ['judge-result', currentEvent?.eventId],
     queryFn: () => mediationApi.getJudgeResult(currentEvent!.eventId),
     enabled: !!currentEvent && currentEvent.status === EventStatus.judged,
   });
 
-  /* ── 手动刷新裁判结果 ── */
   const handleRefreshJudge = async () => {
     try {
       const result = await judgeQuery.refetch();
@@ -64,11 +50,10 @@ export function MediationPage() {
         patchCurrentEvent({ status: EventStatus.judged });
       }
     } catch {
-      // error 由 judgeQuery.error 展示
+      // Error content is already rendered from judgeQuery.error.
     }
   };
 
-  /* ── 小精灵代转达 ── */
   const relayMutation = useMutation({
     mutationFn: () =>
       mediationApi.relayMessage({
@@ -84,7 +69,25 @@ export function MediationPage() {
 
   const inviteLink = currentEvent ? `${window.location.origin}/invite/${currentEvent.eventId}` : '';
 
-  /* ── 分析会话已开启但还没 commit ── */
+  const handleCopyInviteLink = async () => {
+    if (!inviteLink) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      pushMessage({
+        tone: 'success',
+        text: '邀请链接已复制。',
+      });
+    } catch {
+      pushMessage({
+        tone: 'warning',
+        text: '复制失败，请手动复制下方邀请链接。',
+      });
+    }
+  };
+
   const isInAnalysisPhase = sessionId !== null && !currentEvent;
 
   return (
@@ -93,7 +96,7 @@ export function MediationPage() {
         <div>
           <h1 className="text-xl font-bold text-coffee-900">AI 调解室</h1>
           <p className="text-[11px] font-medium text-coffee-800/50">
-            {isInAnalysisPhase ? '正在和 AI 整理事实...' : '让 AI 帮你梳理争吵事实'}
+            {isInAnalysisPhase ? '正在和 AI 一起梳理事实...' : '让 AI 先帮你把冲突事实整理清楚'}
           </p>
         </div>
         <div className="flex h-10 w-10 items-center justify-center rounded-full border border-milk-200 bg-milk-100">
@@ -102,17 +105,15 @@ export function MediationPage() {
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-40 pt-4">
-        {/* ── 欢迎消息 ── */}
         <div className="flex gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-milk-300 shadow-sm">
-            🤖
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-milk-300 text-xs font-bold text-coffee-900 shadow-sm">
+            AI
           </div>
           <div className="max-w-[82%] rounded-2xl rounded-tl-none border border-milk-50 bg-white p-3.5 text-sm leading-7 text-coffee-800 shadow-sm">
-            你好呀，我会帮你把这次冲突整理成可确认的事实。点击下方「开始分析」，跟我聊聊发生了什么。
+            你好，我会帮你把这次冲突整理成可确认的事实。点下面的“开始分析”，先告诉我发生了什么。
           </div>
         </div>
 
-        {/* ── 已有事件 ── */}
         {currentEvent ? (
           <Card className="space-y-3">
             <div className="flex items-start justify-between gap-3">
@@ -122,7 +123,7 @@ export function MediationPage() {
                 <p className="mt-1 text-xs text-coffee-800/60">事件 ID：{currentEvent.eventId}</p>
               </div>
               <span className="rounded-full bg-milk-100 px-3 py-1 text-xs font-bold text-coffee-900">
-                {currentEvent.status}
+                {eventStatusLabel}
               </span>
             </div>
 
@@ -130,24 +131,14 @@ export function MediationPage() {
               <div className="space-y-3 rounded-3xl bg-milk-50 p-4">
                 <div className="flex items-center gap-2 text-coffee-900">
                   <CheckCircle2 className="h-4 w-4 text-accent-pink" />
-                  <span className="text-sm font-bold">Snapshot_A 已冻结，正在等待 B 处理</span>
+                  <span className="text-sm font-bold">Snapshot_A 已冻结，正在等待对方处理</span>
                 </div>
                 <div className="rounded-2xl border border-milk-200 bg-white px-4 py-3 text-sm text-coffee-800">
                   <p className="font-semibold">邀请链接</p>
                   <p className="mt-2 break-all text-xs leading-6">{inviteLink}</p>
                 </div>
                 <div className="flex gap-3">
-                  <Button
-                    fullWidth
-                    variant="secondary"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(inviteLink);
-                      } catch {
-                        window.alert(inviteLink);
-                      }
-                    }}
-                  >
+                  <Button fullWidth variant="secondary" onClick={() => void handleCopyInviteLink()}>
                     <Copy className="mr-2 h-4 w-4" />
                     复制链接
                   </Button>
@@ -174,7 +165,7 @@ export function MediationPage() {
                   <span className="text-sm font-bold text-coffee-900">小精灵代转达</span>
                 </div>
                 <p className="text-xs leading-6 text-coffee-800/60">
-                  当前后端没有关系成员信息查询，所以这里先手动填写对方 `publicId`。
+                  当前后端还没有关系成员信息查询，这里先手动填写对方的 publicId。
                 </p>
                 <Input
                   placeholder="对方 publicId，例如 u_seed_b_1"
@@ -206,16 +197,15 @@ export function MediationPage() {
               清空当前事件
             </Button>
           </Card>
-
         ) : isInAnalysisPhase ? (
-          /* ── 分析会话对话界面 ── */
           <AnalysisChatPanel
+            key={sessionId}
             sessionId={sessionId}
             initialMessages={sessionInitialMessages}
             initialCanCommit={sessionInitialCanCommit}
             initialFactSummary={sessionInitialFactSummary}
-            commitLabel="确认提交，邀请对方参与"
-            inputPlaceholder="跟 AI 说说发生了什么..."
+            commitLabel="确认提交，并邀请对方参与"
+            inputPlaceholder="和 AI 说说发生了什么..."
             onCommitted={(data) => {
               setCurrentEvent({
                 eventId: data.eventId,
@@ -227,23 +217,17 @@ export function MediationPage() {
               setSessionId(null);
             }}
           />
-
         ) : (
-          /* ── 初始：开始分析按钮 ── */
           <Card className="space-y-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-coffee-800/40">开始分析</p>
               <h2 className="mt-2 text-xl font-extrabold text-coffee-900">发起一件新的冲突事件</h2>
               <p className="mt-2 text-sm leading-6 text-coffee-800/70">
-                你可以跟 AI 倾诉发生了什么事，AI 会帮你把事实整理清楚，然后邀请对方参与。
+                你可以先和 AI 说说发生了什么，AI 会帮你整理事实，然后再邀请对方参与。
               </p>
             </div>
             {startSessionMutation.error ? <p className="text-sm font-semibold text-red-400">{getErrorMessage(startSessionMutation.error)}</p> : null}
-            <Button
-              fullWidth
-              disabled={startSessionMutation.isPending}
-              onClick={() => void startSessionMutation.mutateAsync()}
-            >
+            <Button fullWidth disabled={startSessionMutation.isPending} onClick={() => void startSessionMutation.mutateAsync()}>
               {startSessionMutation.isPending ? <LoadingSpinner /> : '开始分析'}
             </Button>
           </Card>
@@ -256,7 +240,6 @@ export function MediationPage() {
         ) : null}
       </div>
 
-      {/* ── 底部提示栏（非分析阶段） ── */}
       {!isInAnalysisPhase ? (
         <div className="absolute bottom-[85px] left-0 right-0 z-20 px-4">
           <div className="flex items-center gap-2 rounded-[24px] border border-milk-100 bg-white p-2 shadow-lg">
@@ -264,7 +247,7 @@ export function MediationPage() {
               <Sparkles className="h-5 w-5" />
             </div>
             <div className="flex-1 text-sm text-coffee-800/60">
-              {currentEvent ? '当前事件已就绪，可以继续推进流程。' : '先开始分析，跟 AI 聊聊发生了什么。'}
+              {currentEvent ? '当前事件已经建立，可以继续推进流程。' : '先开始分析，和 AI 说说到底发生了什么。'}
             </div>
             <MessageCircle className="h-5 w-5 text-coffee-800/40" />
           </div>

@@ -3,6 +3,7 @@ export * from './Button';
 export * from './Card';
 export * from './Input';
 export * from './LoadingSpinner';
+export * from './message-store';
 export * from './MessageViewport';
 export * from './Modal';
 export * from './Textarea';

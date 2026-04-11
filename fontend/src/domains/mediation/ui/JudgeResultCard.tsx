@@ -15,7 +15,7 @@ export function JudgeResultCard({ result }: JudgeResultCardProps) {
         </div>
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.3em] text-coffee-800/40">Judge Result</p>
-          <h3 className="text-lg font-extrabold text-coffee-900">AI 裁判结果</h3>
+          <h3 className="text-lg font-extrabold text-coffee-900">AI 裁决结果</h3>
         </div>
       </div>
 
@@ -39,7 +39,7 @@ function InsightBlock({ title, items }: { title: string; items: string[] }) {
         <span className="text-sm font-bold">{title}</span>
       </div>
       <ul className="space-y-2 text-sm text-coffee-800/80">
-        {items.length > 0 ? items.map((item) => <li key={item}>• {item}</li>) : <li>• 暂无内容</li>}
+        {items.length > 0 ? items.map((item) => <li key={item}>· {item}</li>) : <li>暂无内容</li>}
       </ul>
     </div>
   );

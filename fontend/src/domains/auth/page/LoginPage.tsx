@@ -49,7 +49,7 @@ export function LoginPage() {
             </div>
           </div>
           <p className="mt-4 max-w-sm text-sm leading-7 text-coffee-800/70">
-            登录后继续完成调解、查看裁判结果和吵架日历。
+            登录后继续完成调解、查看裁决结果和复盘日历。
           </p>
         </div>
 
@@ -91,8 +91,8 @@ export function LoginPage() {
 
             <div className="rounded-3xl bg-milk-50 p-4 text-sm text-coffee-800/70">
               <p className="font-bold text-coffee-900">联调 seed 账号</p>
-              <p className="mt-2">A：alice / Secret123!</p>
-              <p>B：bob / Secret123!</p>
+              <p className="mt-2">A：Alice / Secret123!</p>
+              <p>B：Bob / Secret123!</p>
             </div>
 
             <p className="text-center text-sm text-coffee-800/60">

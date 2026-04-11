@@ -61,11 +61,7 @@ export function ReviewEditorDrawer({ reviewId, open, onClose, onUpdated }: Revie
           <Button fullWidth variant="secondary" onClick={onClose}>
             取消
           </Button>
-          <Button
-            fullWidth
-            onClick={() => void updateMutation.mutateAsync()}
-            disabled={!content.trim() || updateMutation.isPending}
-          >
+          <Button fullWidth onClick={() => void updateMutation.mutateAsync()} disabled={!content.trim() || updateMutation.isPending}>
             保存
           </Button>
         </div>
