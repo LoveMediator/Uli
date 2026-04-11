@@ -28,6 +28,16 @@ const allPreloaders = [
   ProfilePage.preload,
 ];
 
+function getSecondaryPreloaders(pathname: string) {
+  const matched = routePreloaders.find((route) => route.test(pathname));
+
+  if (!matched) {
+    return allPreloaders;
+  }
+
+  return allPreloaders.filter((preload) => preload !== matched.preload);
+}
+
 export async function preloadCriticalRoute(pathname: string) {
   const matched = routePreloaders.find((route) => route.test(pathname));
   if (!matched) {
@@ -38,6 +48,21 @@ export async function preloadCriticalRoute(pathname: string) {
   await matched.preload();
 }
 
-export async function preloadSecondaryRoutes() {
-  await Promise.allSettled(allPreloaders.map((preload) => preload()));
+export function preloadSecondaryRoutes(pathname: string) {
+  const preloaders = getSecondaryPreloaders(pathname);
+
+  if (preloaders.length === 0) {
+    return;
+  }
+
+  const runPreloads = () => {
+    void Promise.allSettled(preloaders.map((preload) => preload()));
+  };
+
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(runPreloads, { timeout: 1500 });
+    return;
+  }
+
+  globalThis.setTimeout(runPreloads, 0);
 }

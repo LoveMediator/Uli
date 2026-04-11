@@ -16,6 +16,8 @@ backend/.venv/
 *.egg-info/
 dist/
 build/
+!fontend/build/
+!fontend/build/chunking.ts
 
 # Environment files
 .env

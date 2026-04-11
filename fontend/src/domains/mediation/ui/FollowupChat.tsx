@@ -26,7 +26,7 @@ export function FollowupChat({ eventId }: FollowupChatProps) {
         { role: 'user', content: userMessage },
         {
           role: 'assistant',
-          content: `${data.reply}\n\n本次上下文：最近消息 ${data.contextMeta.recentMessages} 条，快照 ${data.contextMeta.snapshots} 条，裁判结果 ${data.contextMeta.judgeResults} 条。`,
+          content: `${data.reply}\n\n本次上下文：最近消息 ${data.contextMeta.recentMessages} 条，快照 ${data.contextMeta.snapshots} 条，裁决结果 ${data.contextMeta.judgeResults} 条。`,
         },
       ]);
       setMessage('');
@@ -41,13 +41,13 @@ export function FollowupChat({ eventId }: FollowupChatProps) {
         </div>
         <div>
           <h3 className="text-base font-extrabold text-coffee-900">复盘追问</h3>
-          <p className="text-xs text-coffee-800/60">继续追问建议、表达方式或后续相处策略。</p>
+          <p className="text-xs text-coffee-800/60">继续追问建议、表达方式，或者后续相处策略。</p>
         </div>
       </div>
 
       <div className="max-h-64 space-y-3 overflow-y-auto rounded-3xl bg-milk-50 p-4">
         {messages.length === 0 ? (
-          <p className="text-sm text-coffee-800/60">还没有追问记录，试着继续问问下一步怎么做。</p>
+          <p className="text-sm text-coffee-800/60">还没有追问记录，试着问问下一步该怎么做。</p>
         ) : (
           messages.map((item, index) => (
             <div

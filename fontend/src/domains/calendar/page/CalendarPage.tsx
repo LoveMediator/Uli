@@ -4,8 +4,19 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { calendarApi } from '@/domains/calendar/api/calendar-api';
 import { useCalendarState } from '@/domains/calendar/model/use-calendar-state';
 import { ReviewEditorDrawer } from '@/domains/calendar/ui/ReviewEditorDrawer';
-import { buildMonthGrid, cn, formatDisplayDate, formatMonthHeading, getErrorMessage, toDateKey, toMonthKey } from '@/shared/lib';
+import {
+  buildMonthGrid,
+  cn,
+  formatDisplayDate,
+  formatMonthHeading,
+  getErrorMessage,
+  toDateKey,
+  toMonthKey,
+} from '@/shared/lib';
 import { BottomSheet, Button, Card } from '@/shared/ui';
+
+const weekdayLabels = ['日', '一', '二', '三', '四', '五', '六'];
+const moodOptions = ['🙂', '😌', '🥹', '😮‍💨'];
 
 export function CalendarPage() {
   const { relationshipId, calendarExpanded, setCalendarExpanded } = useCalendarState();
@@ -60,7 +71,7 @@ export function CalendarPage() {
         </div>
 
         <div className="mb-3 grid grid-cols-7 text-center">
-          {['日', '一', '二', '三', '四', '五', '六'].map((label) => (
+          {weekdayLabels.map((label) => (
             <span key={label} className="text-xs font-bold text-gray-300">
               {label}
             </span>
@@ -79,6 +90,7 @@ export function CalendarPage() {
             return (
               <button
                 key={day.dateKey}
+                type="button"
                 className="flex min-h-[54px] flex-col items-center gap-1"
                 onClick={() => setSelectedDate(day.dateKey)}
               >
@@ -92,7 +104,11 @@ export function CalendarPage() {
                 >
                   {day.day}
                 </span>
-                {count > 0 ? <span className="text-[10px] font-bold text-red-300">{count} 条</span> : <span className="text-[10px] text-transparent">0</span>}
+                {count > 0 ? (
+                  <span className="text-[10px] font-bold text-red-300">{count} 条</span>
+                ) : (
+                  <span className="text-[10px] text-transparent">0</span>
+                )}
               </button>
             );
           })}
@@ -104,8 +120,11 @@ export function CalendarPage() {
           <div className="mb-6 rounded-3xl bg-milk-50 p-4">
             <p className="text-sm font-bold text-coffee-900">今日心情</p>
             <div className="mt-3 grid grid-cols-4 gap-3">
-              {['😆', '🙂', '🥺', '😤'].map((emoji) => (
-                <div key={emoji} className="flex aspect-square flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white text-2xl shadow-sm">
+              {moodOptions.map((emoji) => (
+                <div
+                  key={emoji}
+                  className="flex aspect-square flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white text-2xl shadow-sm"
+                >
                   {emoji}
                 </div>
               ))}
@@ -114,7 +133,7 @@ export function CalendarPage() {
 
           <Card className="space-y-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.3em] text-coffee-800/40">Day Reviews</p>
+              <p className="text-xs font-bold uppercase tracking-[0.3em] text-coffee-800/40">Reviews</p>
               <h3 className="mt-2 text-lg font-extrabold text-coffee-900">{formatDisplayDate(selectedDate)}</h3>
             </div>
 
@@ -131,12 +150,13 @@ export function CalendarPage() {
                 {reviewListQuery.data.items.map((item) => (
                   <button
                     key={item.reviewId}
+                    type="button"
                     className="w-full rounded-3xl border border-milk-100 bg-white px-4 py-4 text-left transition hover:bg-milk-50"
                     onClick={() => setActiveReviewId(item.reviewId)}
                   >
                     <p className="text-sm font-bold text-coffee-900">{item.title ?? '未命名复盘'}</p>
                     <p className="mt-2 text-xs leading-6 text-coffee-800/60">
-                      eventId: {item.eventId} · 更新于 {new Date(item.updatedAt).toLocaleString('zh-CN')}
+                      eventId: {item.eventId} · 更新时间：{new Date(item.updatedAt).toLocaleString('zh-CN')}
                     </p>
                   </button>
                 ))}
@@ -144,7 +164,7 @@ export function CalendarPage() {
             ) : null}
 
             {reviewListQuery.data && reviewListQuery.data.items.length === 0 ? (
-              <p className="text-sm leading-7 text-coffee-800/60">这一天还没有复盘记录，等事件裁判完成后会自动沉淀到这里。</p>
+              <p className="text-sm leading-7 text-coffee-800/60">这一天还没有复盘记录，等事件裁决完成后会自动沉淀到这里。</p>
             ) : null}
           </Card>
         </div>

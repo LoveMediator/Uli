@@ -2,12 +2,14 @@ import { Heart, LogOut, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/domains/auth';
 import { useCurrentEvent } from '@/domains/mediation';
+import { formatEventStatus } from '@/shared/lib';
 import { Button, Card } from '@/shared/ui';
 
 export function ProfilePage() {
   const navigate = useNavigate();
   const { usernameDraft, publicId, logout, isLoggingOut } = useAuth();
   const { relationshipId, currentEvent } = useCurrentEvent();
+  const currentStatusLabel = formatEventStatus(currentEvent?.status);
 
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-milk-50 pb-32">
@@ -24,7 +26,7 @@ export function ProfilePage() {
             <h2 className="text-xl font-bold text-coffee-900">{usernameDraft || '未命名用户'}</h2>
             <p className="text-xs font-medium text-coffee-800/60">当前绑定关系：{relationshipId}</p>
           </div>
-          <button className="ml-auto rounded-full bg-white/50 p-2 transition hover:bg-white">
+          <button type="button" className="ml-auto rounded-full bg-white/50 p-2 transition hover:bg-white">
             <Settings className="h-5 w-5 text-coffee-800" />
           </button>
         </div>
@@ -34,7 +36,7 @@ export function ProfilePage() {
         <div className="relative z-20 flex items-center justify-around rounded-2xl bg-white p-4 shadow-float">
           <Stat label="publicId" value={publicId ?? '--'} accent="text-accent-pink" />
           <Divider />
-          <Stat label="事件状态" value={currentEvent?.status ?? 'none'} accent="text-milk-500" />
+          <Stat label="当前状态" value={currentEvent ? currentStatusLabel : '暂无'} accent="text-milk-500" />
           <Divider />
           <Stat label="当前事件" value={currentEvent?.eventId ?? '--'} accent="text-accent-blue" />
         </div>
@@ -56,7 +58,7 @@ export function ProfilePage() {
             <div className="space-y-2 text-sm leading-7 text-coffee-800/70">
               <p>标题：{currentEvent.title}</p>
               <p>事件 ID：{currentEvent.eventId}</p>
-              <p>状态：{currentEvent.status}</p>
+              <p>状态：{currentStatusLabel}</p>
             </div>
           ) : (
             <p className="text-sm leading-7 text-coffee-800/60">还没有进行中的事件，去调解室创建一个新的吧。</p>

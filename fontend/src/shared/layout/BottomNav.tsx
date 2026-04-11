@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { cn } from '@/shared/lib';
 
 const items = [
-  { to: '/app/home', label: '主页', icon: Home },
+  { to: '/app/home', label: '首页', icon: Home },
   { to: '/app/mediation', label: '调解', icon: HeartHandshake },
   { to: '/app/calendar', label: '日历', icon: CalendarDays },
   { to: '/app/profile', label: '我的', icon: User2 },
