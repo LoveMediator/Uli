@@ -42,7 +42,10 @@ export function HomePage() {
       </div>
 
       <header className="relative z-20 flex items-center justify-between px-6 pt-14">
-        <div className="flex items-center gap-2 rounded-full border border-white bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur">
+        <div 
+          className="cursor-pointer flex items-center gap-2 rounded-full border border-white bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur hover:bg-white/95 transition-colors"
+          onClick={() => navigate('/app/relationship')}
+        >
           <div className="flex -space-x-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-accent-pink text-xs font-bold text-white">
               A

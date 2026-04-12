@@ -10,6 +10,7 @@ import {
   MediationPage,
   ProfilePage,
   RegisterPage,
+  RelationshipPage,
 } from '@/app/routes/route-modules';
 import { AppShell } from '@/shared/layout';
 
@@ -79,6 +80,7 @@ export function AppRouter() {
             <Route path="mediation" element={<RoutePage component={MediationPage} />} />
             <Route path="calendar" element={<RoutePage component={CalendarPage} />} />
             <Route path="profile" element={<RoutePage component={ProfilePage} />} />
+            <Route path="relationship" element={<RoutePage component={RelationshipPage} />} />
           </Route>
         </Route>
 

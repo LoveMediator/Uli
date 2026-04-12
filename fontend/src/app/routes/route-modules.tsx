@@ -39,3 +39,7 @@ export const ProfilePage = lazyWithPreload(() =>
 export const InvitePage = lazyWithPreload(() =>
   import('@/domains/invite/page/InvitePage').then((module) => ({ default: module.InvitePage })),
 );
+
+export const RelationshipPage = lazyWithPreload(() =>
+  import('@/domains/relationship/page/RelationshipPage').then((module) => ({ default: module.RelationshipPage })),
+);

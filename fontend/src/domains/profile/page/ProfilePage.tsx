@@ -32,7 +32,7 @@ export function ProfilePage() {
         </div>
       </div>
 
-      <div className="-mt-6 px-6">
+      <div className="relative -mt-6 px-6">
         <div className="relative z-20 flex items-center justify-around rounded-2xl bg-white p-4 shadow-float">
           <Stat label="publicId" value={publicId ?? '--'} accent="text-accent-pink" />
           <Divider />
@@ -88,8 +88,8 @@ function Divider() {
 
 function Stat({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
-    <div className="text-center">
-      <span className={`block text-lg font-extrabold ${accent}`}>{value}</span>
+    <div className="text-center flex flex-col items-center justify-center">
+      <span className={`block text-lg font-extrabold ${accent} mb-1`}>{value}</span>
       <span className="text-[10px] font-bold text-gray-400">{label}</span>
     </div>
   );
