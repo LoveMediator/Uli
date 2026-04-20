@@ -10,6 +10,7 @@ export function ProfilePage() {
   const { usernameDraft, publicId, logout, isLoggingOut } = useAuth();
   const { relationshipId, currentEvent } = useCurrentEvent();
   const currentStatusLabel = formatEventStatus(currentEvent?.status);
+  const relationshipLabel = relationshipId || '未绑定';
 
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-milk-50 pb-32">
@@ -24,7 +25,7 @@ export function ProfilePage() {
           </div>
           <div>
             <h2 className="text-xl font-bold text-coffee-900">{usernameDraft || '未命名用户'}</h2>
-            <p className="text-xs font-medium text-coffee-800/60">当前绑定关系：{relationshipId}</p>
+            <p className="text-xs font-medium text-coffee-800/60">当前绑定关系：{relationshipLabel}</p>
           </div>
           <button type="button" className="ml-auto rounded-full bg-white/50 p-2 transition hover:bg-white">
             <Settings className="h-5 w-5 text-coffee-800" />
@@ -48,7 +49,7 @@ export function ProfilePage() {
           <div className="space-y-2 text-sm leading-7 text-coffee-800/70">
             <p>用户名草稿：{usernameDraft || '未填写'}</p>
             <p>publicId：{publicId || '未登录'}</p>
-            <p>relationshipId：{relationshipId}</p>
+            <p>relationshipId：{relationshipLabel}</p>
           </div>
         </Card>
 

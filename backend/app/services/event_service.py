@@ -155,9 +155,10 @@ def _execute_judge_inner(
         snapshot_b=snapshot_b,
     )
 
+    now = datetime.now(tz=UTC)
     old_status = event.status
     event.status = EventStatus.JUDGED
-    event.judged_at = datetime.now(tz=UTC)
+    event.judged_at = now
     db.flush()
 
     audit_repo.create_event_state_log(
@@ -224,6 +225,19 @@ def _execute_judge_inner(
         event_id=event.id,
         relationship_id=rel.id,
         content=review_content,
+    )
+
+    event.status = EventStatus.REVIEWED
+    event.reviewed_at = now
+    db.flush()
+
+    audit_repo.create_event_state_log(
+        db,
+        event_id=event.id,
+        from_status=EventStatus.JUDGED,
+        to_status=EventStatus.REVIEWED,
+        action="review_create",
+        operator_user_id=operator_user_id,
     )
 
     db.commit()

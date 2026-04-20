@@ -146,7 +146,7 @@ def test_commit_a_rejects_wrong_status():
 def test_b_agree_success(monkeypatch):
     event = SimpleNamespace(
         id=100, public_id="ev_1", status=EventStatus.WAITING_B,
-        relationship_id=10, initiator_user_id=1, judged_at=None,
+        relationship_id=10, initiator_user_id=1, judged_at=None, reviewed_at=None,
     )
     rel = SimpleNamespace(id=10, public_id="rel_1", user_a_id=1, user_b_id=2)
     snapshot_a = SimpleNamespace(id=1, summary="test", points_a=[], points_b=[])
@@ -190,7 +190,8 @@ def test_b_agree_success(monkeypatch):
 
     ev, jr = event_service.b_agree(db, user_id=2, event_public_id="ev_1", agree=True)
     assert jr.public_id == "jr_1"
-    assert event.status == EventStatus.JUDGED
+    assert event.status == EventStatus.REVIEWED
+    assert event.reviewed_at is not None
 
 
 def test_b_agree_rejects_initiator():

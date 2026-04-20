@@ -47,7 +47,7 @@ def client(_app):
 def test_create_relationship_invite_success(client):
     data = RelationshipInviteData(
         inviteToken="invite-token",
-        inviteUrl="/relationship-invite?token=invite-token",
+        inviteUrl="/app/relationship?inviteToken=invite-token",
         expiresAt=datetime(2026, 3, 27, tzinfo=UTC),
     )
     with patch("app.services.relationship_service.create_relationship_invite", return_value=data):

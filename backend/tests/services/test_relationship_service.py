@@ -9,7 +9,7 @@ def test_create_relationship_invite_success():
     user = SimpleNamespace(id=1, public_id="u_1", username="alice")
     data = relationship_service.create_relationship_invite(user)
     assert data.invite_token
-    assert data.invite_url.startswith("/relationship-invite?token=")
+    assert data.invite_url.startswith("/app/relationship?inviteToken=")
     assert isinstance(data.expires_at, datetime)
 
 

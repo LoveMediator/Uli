@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Bot, CheckCircle2, Copy, Heart, MessageCircle, RefreshCcw, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/domains/auth';
 import { mediationApi } from '@/domains/mediation/api/mediation-api';
 import { useCurrentEvent } from '@/domains/mediation/model/use-current-event';
@@ -8,15 +9,23 @@ import { AnalysisChatPanel } from '@/domains/mediation/ui/AnalysisChatPanel';
 import { FollowupChat } from '@/domains/mediation/ui/FollowupChat';
 import { JudgeResultCard } from '@/domains/mediation/ui/JudgeResultCard';
 import type { AnalysisSessionMessagePayload } from '@/shared/api/types';
-import { EventStatus } from '@/shared/api/types';
+import { EventStatus, type EventStatusValue } from '@/shared/api/types';
 import { formatEventStatus, getErrorMessage } from '@/shared/lib';
 import { Button, Card, Input, LoadingSpinner, pushMessage } from '@/shared/ui';
 
 export function MediationPage() {
+  const judgeVisibleStatuses = new Set<EventStatusValue>([
+    EventStatus.judged,
+    EventStatus.reviewed,
+    EventStatus.closed,
+  ]);
+  const navigate = useNavigate();
   const { currentEvent, relationshipId, setCurrentEvent, patchCurrentEvent, clearCurrentEvent } =
     useCurrentEvent();
   const publicId = useAuthStore((state) => state.publicId);
   const eventStatusLabel = formatEventStatus(currentEvent?.status);
+  const hasRelationship = relationshipId.trim().length > 0;
+  const canViewJudge = !!currentEvent && judgeVisibleStatuses.has(currentEvent.status);
 
   const [sessionId, setSessionId] = useState<string | null>(currentEvent?.sessionId ?? null);
   const [sessionInitialMessages, setSessionInitialMessages] = useState<AnalysisSessionMessagePayload[]>([]);
@@ -40,14 +49,14 @@ export function MediationPage() {
   const judgeQuery = useQuery({
     queryKey: ['judge-result', currentEvent?.eventId],
     queryFn: () => mediationApi.getJudgeResult(currentEvent!.eventId),
-    enabled: !!currentEvent && currentEvent.status === EventStatus.judged,
+    enabled: canViewJudge,
   });
 
   const handleRefreshJudge = async () => {
     try {
       const result = await judgeQuery.refetch();
       if (result.data) {
-        patchCurrentEvent({ status: EventStatus.judged });
+        patchCurrentEvent({ status: result.data.status });
       }
     } catch {
       // Error content is already rendered from judgeQuery.error.
@@ -151,7 +160,7 @@ export function MediationPage() {
               </div>
             ) : null}
 
-            {currentEvent.status === EventStatus.judged && judgeQuery.data ? (
+            {canViewJudge && judgeQuery.data ? (
               <>
                 <JudgeResultCard result={judgeQuery.data} />
                 <FollowupChat eventId={currentEvent.eventId} />
@@ -223,13 +232,21 @@ export function MediationPage() {
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-coffee-800/40">开始分析</p>
               <h2 className="mt-2 text-xl font-extrabold text-coffee-900">发起一件新的冲突事件</h2>
               <p className="mt-2 text-sm leading-6 text-coffee-800/70">
-                你可以先和 AI 说说发生了什么，AI 会帮你整理事实，然后再邀请对方参与。
+                {hasRelationship
+                  ? '你可以先和 AI 说说发生了什么，AI 会帮你整理事实，然后再邀请对方参与。'
+                  : '先绑定一段关系，再开始新的调解事件。'}
               </p>
             </div>
             {startSessionMutation.error ? <p className="text-sm font-semibold text-red-400">{getErrorMessage(startSessionMutation.error)}</p> : null}
-            <Button fullWidth disabled={startSessionMutation.isPending} onClick={() => void startSessionMutation.mutateAsync()}>
-              {startSessionMutation.isPending ? <LoadingSpinner /> : '开始分析'}
-            </Button>
+            {hasRelationship ? (
+              <Button fullWidth disabled={startSessionMutation.isPending} onClick={() => void startSessionMutation.mutateAsync()}>
+                {startSessionMutation.isPending ? <LoadingSpinner /> : '开始分析'}
+              </Button>
+            ) : (
+              <Button fullWidth onClick={() => navigate('/app/relationship')}>
+                去绑定关系
+              </Button>
+            )}
           </Card>
         )}
 

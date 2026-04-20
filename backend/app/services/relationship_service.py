@@ -28,7 +28,7 @@ from app.utils.ids import generate_public_id
 
 INVITE_TOKEN_TYPE = "relationship_invite"
 INVITE_EXPIRE_DAYS = 7
-INVITE_FRONTEND_PATH = "/relationship-invite"
+INVITE_FRONTEND_PATH = "/app/relationship"
 CANCEL_TOKEN_TYPE = "relationship_cancel"
 CANCEL_EXPIRE_DAYS = 7
 CANCEL_FRONTEND_PATH = "/relationship-cancel"
@@ -180,7 +180,7 @@ def create_relationship_invite(current_user: User) -> RelationshipInviteData:
     invite_token = _create_invite_token(current_user.id, expires_at)
     return RelationshipInviteData(
         inviteToken=invite_token,
-        inviteUrl=f"{INVITE_FRONTEND_PATH}?token={invite_token}",
+        inviteUrl=f"{INVITE_FRONTEND_PATH}?inviteToken={invite_token}",
         expiresAt=expires_at,
     )
 

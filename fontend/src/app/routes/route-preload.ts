@@ -5,6 +5,7 @@ import {
   LoginPage,
   MediationPage,
   ProfilePage,
+  RelationshipPage,
   RegisterPage,
 } from '@/app/routes/route-modules';
 
@@ -16,6 +17,7 @@ const routePreloaders = [
   { test: (pathname: string) => pathname === '/app/mediation', preload: MediationPage.preload },
   { test: (pathname: string) => pathname === '/app/calendar', preload: CalendarPage.preload },
   { test: (pathname: string) => pathname === '/app/profile', preload: ProfilePage.preload },
+  { test: (pathname: string) => pathname === '/app/relationship', preload: RelationshipPage.preload },
 ];
 
 const allPreloaders = [
@@ -26,6 +28,7 @@ const allPreloaders = [
   MediationPage.preload,
   CalendarPage.preload,
   ProfilePage.preload,
+  RelationshipPage.preload,
 ];
 
 function getSecondaryPreloaders(pathname: string) {

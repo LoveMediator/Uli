@@ -31,12 +31,13 @@ export function CalendarPage() {
   const calendarQuery = useQuery({
     queryKey: ['calendar', monthKey, relationshipId],
     queryFn: () => calendarApi.getCalendar(monthKey, relationshipId),
+    enabled: !!relationshipId,
   });
 
   const reviewListQuery = useQuery({
     queryKey: ['calendar-reviews', selectedDate, relationshipId],
     queryFn: () => calendarApi.getReviewsByDate(selectedDate, relationshipId),
-    enabled: !!selectedDate,
+    enabled: !!selectedDate && !!relationshipId,
   });
 
   const countByDate = useMemo(
@@ -137,15 +138,19 @@ export function CalendarPage() {
               <h3 className="mt-2 text-lg font-extrabold text-coffee-900">{formatDisplayDate(selectedDate)}</h3>
             </div>
 
+            {!relationshipId ? (
+              <p className="text-sm leading-7 text-coffee-800/60">先绑定关系，日历里才会展示这段关系的复盘记录。</p>
+            ) : null}
+
             {calendarQuery.error ? (
               <p className="text-sm font-semibold text-red-400">{getErrorMessage(calendarQuery.error)}</p>
             ) : null}
 
-            {reviewListQuery.isLoading ? (
+            {relationshipId && reviewListQuery.isLoading ? (
               <p className="text-sm text-coffee-800/60">正在加载这一天的复盘记录...</p>
             ) : null}
 
-            {reviewListQuery.data?.items.length ? (
+            {relationshipId && reviewListQuery.data?.items.length ? (
               <div className="space-y-3">
                 {reviewListQuery.data.items.map((item) => (
                   <button
@@ -163,7 +168,7 @@ export function CalendarPage() {
               </div>
             ) : null}
 
-            {reviewListQuery.data && reviewListQuery.data.items.length === 0 ? (
+            {relationshipId && reviewListQuery.data && reviewListQuery.data.items.length === 0 ? (
               <p className="text-sm leading-7 text-coffee-800/60">这一天还没有复盘记录，等事件裁决完成后会自动沉淀到这里。</p>
             ) : null}
           </Card>

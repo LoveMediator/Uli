@@ -128,11 +128,80 @@ def test_elf_moderate_success(monkeypatch):
         return SimpleNamespace()
 
     monkeypatch.setattr(elf_service.elf_repo, "create_moderation_log", _create_log)
+    monkeypatch.setattr(
+        elf_service.ai_service,
+        "call_llm_json",
+        lambda **_kwargs: {
+            "data": elf_service.ModerateAiPayload(
+                riskLevel="medium",
+                blocked=False,
+                suggestedMessage="我想把这件事说清楚，我们能不能先平静聊一下？",
+            ),
+            "model_name": "mock-model",
+            "input_tokens": 12,
+            "output_tokens": 8,
+        },
+    )
 
     resp = elf_service.moderate_message(db, user_id=10, raw_message="a" * 120)
     assert called["logged"] == 1
     assert db.commit_count == 1
     assert resp.risk_level == "medium"
+    assert resp.suggested_message == "我想把这件事说清楚，我们能不能先平静聊一下？"
+
+
+def test_elf_relay_uses_ai_result(monkeypatch):
+    event = SimpleNamespace(id=7, public_id="ev_1", relationship_id=1, status=EventStatus.REVIEWED)
+    rel = SimpleNamespace(id=1, user_a_id=10, user_b_id=20)
+    partner = SimpleNamespace(id=20, public_id="u_20")
+
+    class _DB:
+        def __init__(self):
+            self.commit_count = 0
+            self._step = 0
+            self.added = []
+
+        def execute(self, *_):
+            self._step += 1
+            if self._step == 1:
+                return _ScalarResult(event)
+            if self._step == 2:
+                return _ScalarResult(rel)
+            return _ScalarResult(partner)
+
+        def add(self, obj):
+            self.added.append(obj)
+
+        def flush(self):
+            pass
+
+        def commit(self):
+            self.commit_count += 1
+
+    db = _DB()
+    monkeypatch.setattr(
+        elf_service.ai_service,
+        "call_llm_json",
+        lambda **_kwargs: {
+            "data": elf_service.ElfRelayAiPayload(
+                finalMessage="我想把刚才那件事说得更清楚一点，我们能不能晚些时候平静聊聊？",
+            ),
+            "model_name": "mock-model",
+            "input_tokens": 11,
+            "output_tokens": 9,
+        },
+    )
+
+    resp = elf_service.relay_message(
+        db,
+        user_id=10,
+        event_public_id="ev_1",
+        target_user_public_id="u_20",
+        raw_message="你为什么老是这样",
+    )
+    assert db.commit_count == 1
+    assert resp.delivered is True
+    assert "平静聊聊" in resp.final_message
 
 
 def test_followup_chat_prereq_not_met():

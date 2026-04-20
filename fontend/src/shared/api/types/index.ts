@@ -4,3 +4,4 @@ export * from './calendar';
 export * from './elf';
 export * from './enums';
 export * from './mediation';
+export * from './relationship';

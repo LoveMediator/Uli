@@ -1,10 +1,12 @@
 import { useMutation } from '@tanstack/react-query';
+import { useAppStore } from '@/app/model/app-store';
 import { authApi } from '@/domains/auth/api/auth-api';
 import { useAuthStore } from '@/domains/auth/model/auth-store';
 import { getErrorMessage } from '@/shared/lib';
 
 export function useAuth() {
   const authState = useAuthStore();
+  const resetAppContext = useAppStore((state) => state.resetAppContext);
 
   const loginMutation = useMutation({
     mutationFn: authApi.login,
@@ -26,6 +28,7 @@ export function useAuth() {
     },
     onSettled: () => {
       authState.clearSession();
+      resetAppContext();
     },
   });
 

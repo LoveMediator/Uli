@@ -6,12 +6,17 @@ import { useAuthStore } from '@/domains/auth';
 import { FollowupChat, JudgeResultCard, mediationApi } from '@/domains/mediation';
 import { AnalysisChatPanel } from '@/domains/mediation/ui/AnalysisChatPanel';
 import type { AnalysisSessionMessagePayload } from '@/shared/api/types';
-import { EventStatus } from '@/shared/api/types';
+import { EventStatus, type EventStatusValue } from '@/shared/api/types';
 import { formatEventStatus, getErrorMessage } from '@/shared/lib';
 import { DeviceFrame } from '@/shared/layout';
 import { Button, Card, LoadingSpinner } from '@/shared/ui';
 
 export function InvitePage() {
+  const judgeVisibleStatuses = new Set<EventStatusValue>([
+    EventStatus.judged,
+    EventStatus.reviewed,
+    EventStatus.closed,
+  ]);
   const navigate = useNavigate();
   const { eventId = '' } = useParams();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -55,7 +60,7 @@ export function InvitePage() {
     enabled:
       !!eventId &&
       isAuthenticated &&
-      (resultReady || inviteQuery.data?.status === EventStatus.judged),
+      (resultReady || judgeVisibleStatuses.has(inviteQuery.data?.status ?? EventStatus.draft)),
   });
 
   const isInBAnalysis = sessionId !== null;

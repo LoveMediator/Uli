@@ -13,6 +13,7 @@ export function HomePage() {
   const navigate = useNavigate();
   const username = useAuthStore((state) => state.usernameDraft) || '小红薯';
   const relationshipId = useAppStore((state) => state.relationshipId);
+  const hasRelationship = relationshipId.trim().length > 0;
   const { homeOverlayOpen, setHomeOverlayOpen } = useHomeOverlay();
   const [message, setMessage] = useState('');
   const [petReply, setPetReply] = useState('点我一下，把不好开口的话先告诉我。');
@@ -89,9 +90,11 @@ export function HomePage() {
         <div className="rounded-[28px] border border-white/70 bg-white/90 p-4 shadow-soft">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-coffee-800/40">Quick Start</p>
           <h2 className="mt-2 text-xl font-extrabold text-coffee-900">准备开始一次新的调解</h2>
-          <p className="mt-2 text-sm leading-6 text-coffee-800/70">当前默认关系 ID：{relationshipId}</p>
-          <Button fullWidth className="mt-4" onClick={() => navigate('/app/mediation')}>
-            进入调解室
+          <p className="mt-2 text-sm leading-6 text-coffee-800/70">
+            {hasRelationship ? `当前关系 ID：${relationshipId}` : '你还没有绑定关系，先去邀请或加入一段关系吧。'}
+          </p>
+          <Button fullWidth className="mt-4" onClick={() => navigate(hasRelationship ? '/app/mediation' : '/app/relationship')}>
+            {hasRelationship ? '进入调解室' : '去绑定关系'}
           </Button>
         </div>
       </div>

@@ -15,6 +15,7 @@ export type AppState = {
   clearCurrentEvent: () => void;
   setHomeOverlayOpen: (open: boolean) => void;
   setCalendarExpanded: (expanded: boolean) => void;
+  resetAppContext: () => void;
 };
 
 migrateLegacyPersistedState('uli-app', ['love-mediator-app']);
@@ -35,6 +36,13 @@ export const useAppStore = create<AppState>()(
       clearCurrentEvent: () => set({ currentEvent: null }),
       setHomeOverlayOpen: (homeOverlayOpen) => set({ homeOverlayOpen }),
       setCalendarExpanded: (calendarExpanded) => set({ calendarExpanded }),
+      resetAppContext: () =>
+        set({
+          relationshipId: DEFAULT_RELATIONSHIP_ID,
+          currentEvent: null,
+          homeOverlayOpen: false,
+          calendarExpanded: false,
+        }),
     }),
     {
       name: 'uli-app',

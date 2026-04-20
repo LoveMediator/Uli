@@ -1,28 +1,46 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAppStore } from '@/app/model/app-store';
 import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
 import { Input } from '@/shared/ui/Input';
+import { pushMessage } from '@/shared/ui/message-store';
 import { Loader2 } from 'lucide-react';
 import { useCreateRelationship } from '@/domains/relationship/hooks/useCreateRelationship';
 import { useQueryClient } from '@tanstack/react-query';
+import { getErrorMessage } from '@/shared/lib';
 
 const RelationshipPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [inviteCode, setInviteCode] = useState('');
+  const [generatedInviteToken, setGeneratedInviteToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { createInvite, acceptInvite } = useCreateRelationship();
   const queryClient = useQueryClient();
+  const setRelationshipId = useAppStore((state) => state.setRelationshipId);
+
+  useEffect(() => {
+    const queryInviteToken = searchParams.get('inviteToken');
+    if (queryInviteToken) {
+      setInviteCode(queryInviteToken);
+    }
+  }, [searchParams]);
 
   const handleCreateInvite = async () => {
     setIsSubmitting(true);
     setError(null);
     try {
       const result = await createInvite.mutateAsync();
-      alert(`邀请码已生成：${result.invite_code}\n请将此邀请码分享给您的伴侣`);
-    } catch (err) {
-      setError('生成邀请码失败，请重试');
+      setGeneratedInviteToken(result.inviteToken);
+      await navigator.clipboard.writeText(result.inviteToken);
+      pushMessage({
+        tone: 'success',
+        text: '邀请码已复制，可以直接发给对方了。',
+      });
+    } catch (error) {
+      setError(getErrorMessage(error, '生成邀请码失败，请重试'));
     } finally {
       setIsSubmitting(false);
     }
@@ -37,12 +55,16 @@ const RelationshipPage = () => {
     setIsSubmitting(true);
     setError(null);
     try {
-      await acceptInvite.mutateAsync(inviteCode);
+      const result = await acceptInvite.mutateAsync(inviteCode.trim());
+      setRelationshipId(result.relationshipId);
       await queryClient.invalidateQueries({ queryKey: ['relationships'] });
-      alert('关系绑定成功！');
+      pushMessage({
+        tone: 'success',
+        text: `关系绑定成功，已切换到 ${result.partnerUsername}。`,
+      });
       navigate('/app/home');
-    } catch (err) {
-      setError('邀请码无效或已过期');
+    } catch (error) {
+      setError(getErrorMessage(error, '邀请码无效或已过期'));
     } finally {
       setIsSubmitting(false);
     }
@@ -79,6 +101,12 @@ const RelationshipPage = () => {
                   '生成邀请码'
                 )}
               </Button>
+              {generatedInviteToken ? (
+                <div className="mt-4 rounded-2xl border border-milk-200 bg-milk-50 px-4 py-3 text-sm text-coffee-900">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-coffee-800/50">邀请码</p>
+                  <p className="mt-2 break-all font-bold">{generatedInviteToken}</p>
+                </div>
+              ) : null}
             </div>
 
             <div className="border-t border-gray-200 pt-6">
