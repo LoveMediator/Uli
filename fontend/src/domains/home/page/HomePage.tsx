@@ -1,22 +1,49 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Bell, MessageCircle, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/app/model/app-store';
 import { useAuthStore } from '@/domains/auth';
 import { homeApi } from '@/domains/home/api/home-api';
 import { useHomeOverlay } from '@/domains/home/model/use-home-overlay';
-import { getErrorMessage } from '@/shared/lib';
+import { mediationApi } from '@/domains/mediation';
+import { formatEventStatus, getErrorMessage } from '@/shared/lib';
 import { Button, LoadingSpinner, Modal, Textarea } from '@/shared/ui';
 
 export function HomePage() {
   const navigate = useNavigate();
   const username = useAuthStore((state) => state.usernameDraft) || '小红薯';
   const relationshipId = useAppStore((state) => state.relationshipId);
-  const hasRelationship = relationshipId.trim().length > 0;
+  const activeRelationship = useAppStore((state) => state.activeRelationship);
+  const currentEvent = useAppStore((state) => state.currentEvent);
+  const currentRelationshipId = activeRelationship?.relationshipId || relationshipId;
+  const hasRelationship = currentRelationshipId.trim().length > 0;
+  const partnerName = activeRelationship?.partnerUsername ?? '对方';
+  const relayTargetUserId = currentEvent?.partnerUserId ?? activeRelationship?.partnerUserId ?? '';
+  const canRelay = !!currentEvent && !!relayTargetUserId;
+  const quickStartTitle = currentEvent ? '当前调解正在进行' : '准备开始一次新的调解';
+  const quickStartCopy = currentEvent
+    ? `和 ${partnerName} 的事件状态：${formatEventStatus(currentEvent.status)}`
+    : hasRelationship
+      ? `当前关系：${partnerName}`
+      : '你还没有绑定关系，先去邀请或加入一段关系吧。';
+  const quickStartButtonLabel = currentEvent ? '查看调解状态' : hasRelationship ? '进入调解室' : '去绑定关系';
   const { homeOverlayOpen, setHomeOverlayOpen } = useHomeOverlay();
   const [message, setMessage] = useState('');
-  const [petReply, setPetReply] = useState('点我一下，把不好开口的话先告诉我。');
+  const [petReply, setPetReply] = useState('');
+
+  const elfMessagesQuery = useQuery({
+    queryKey: ['elf-messages'],
+    queryFn: () => homeApi.getElfMessages(5),
+    staleTime: 30_000,
+  });
+
+  const latestIncoming = elfMessagesQuery.data?.items[0];
+  const petBubbleText =
+    petReply ||
+    (latestIncoming
+      ? `${latestIncoming.fromUsername} 通过小精灵转达：${latestIncoming.finalMessage}`
+      : '点我一下，把不好开口的话先告诉我。');
 
   const moderateMutation = useMutation({
     mutationFn: homeApi.moderateMessage,
@@ -26,6 +53,24 @@ export function HomePage() {
       setMessage('');
     },
   });
+
+  const relayMutation = useMutation({
+    mutationFn: (rawMessage: string) =>
+      mediationApi.relayMessage({
+        eventId: currentEvent!.eventId,
+        targetUserId: relayTargetUserId,
+        rawMessage,
+      }),
+    onSuccess: (data) => {
+      setPetReply(`已帮你转达给${partnerName}：${data.finalMessage}`);
+      void elfMessagesQuery.refetch();
+      setHomeOverlayOpen(false);
+      setMessage('');
+    },
+  });
+
+  const isSubmitting = moderateMutation.isPending || relayMutation.isPending;
+  const formError = relayMutation.error ?? moderateMutation.error;
 
   return (
     <div className="relative flex h-full flex-col bg-milk-50">
@@ -82,19 +127,19 @@ export function HomePage() {
         </button>
 
         <div className="mt-6 max-w-[250px] rounded-3xl bg-white/95 px-5 py-4 text-center text-sm font-semibold leading-6 text-coffee-800 shadow-soft">
-          {petReply}
+          {petBubbleText}
         </div>
       </div>
 
       <div className="relative z-10 px-6 pb-28">
         <div className="rounded-[28px] border border-white/70 bg-white/90 p-4 shadow-soft">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-coffee-800/40">Quick Start</p>
-          <h2 className="mt-2 text-xl font-extrabold text-coffee-900">准备开始一次新的调解</h2>
+          <h2 className="mt-2 text-xl font-extrabold text-coffee-900">{quickStartTitle}</h2>
           <p className="mt-2 text-sm leading-6 text-coffee-800/70">
-            {hasRelationship ? `当前关系 ID：${relationshipId}` : '你还没有绑定关系，先去邀请或加入一段关系吧。'}
+            {quickStartCopy}
           </p>
           <Button fullWidth className="mt-4" onClick={() => navigate(hasRelationship ? '/app/mediation' : '/app/relationship')}>
-            {hasRelationship ? '进入调解室' : '去绑定关系'}
+            {quickStartButtonLabel}
           </Button>
         </div>
       </div>
@@ -103,10 +148,12 @@ export function HomePage() {
         <div className="rounded-[30px] bg-white p-6 shadow-2xl">
           <h3 className="mb-2 flex items-center gap-2 text-lg font-bold text-coffee-900">
             <MessageCircle className="h-5 w-5 text-accent-pink" />
-            先让我帮你润一下语气
+            {canRelay ? `让我帮你转达给${partnerName}` : '先让我帮你润一下语气'}
           </h3>
           <p className="mb-4 text-sm leading-6 text-coffee-800/70">
-            这里会调用真实的 `/elf/moderate`，帮你把表达整理得更温和、更容易被对方接住。
+            {canRelay
+              ? '我会先把表达整理得更温和，再记录为一条给对方的代转达。'
+              : '当前还没有进行中的调解事件，我可以先帮你把表达整理得更温和。'}
           </p>
           <form
             className="space-y-3"
@@ -114,6 +161,10 @@ export function HomePage() {
               event.preventDefault();
               const value = message.trim();
               if (!value) {
+                return;
+              }
+              if (canRelay) {
+                void relayMutation.mutateAsync(value);
                 return;
               }
               void moderateMutation.mutateAsync({ rawMessage: value });
@@ -125,10 +176,10 @@ export function HomePage() {
               onChange={(event) => setMessage(event.target.value)}
               placeholder="比如：你为什么总是不提前说一声？"
             />
-            {moderateMutation.error ? <p className="text-sm font-semibold text-red-400">{getErrorMessage(moderateMutation.error)}</p> : null}
-            <Button fullWidth type="submit" disabled={moderateMutation.isPending}>
-              {moderateMutation.isPending ? <LoadingSpinner /> : <Send className="mr-2 h-4 w-4" />}
-              获取温和表达
+            {formError ? <p className="text-sm font-semibold text-red-400">{getErrorMessage(formError)}</p> : null}
+            <Button fullWidth type="submit" disabled={isSubmitting}>
+              {isSubmitting ? <LoadingSpinner /> : <Send className="mr-2 h-4 w-4" />}
+              {canRelay ? '发送代转达' : '获取温和表达'}
             </Button>
           </form>
         </div>

@@ -3,6 +3,7 @@
 仅操作 elf_messages、moderation_logs 表。
 """
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.constants.enums import ModerationRiskLevel
@@ -55,3 +56,19 @@ def create_moderation_log(
     db.add(log)
     db.flush()
     return log
+
+
+def list_inbox_messages(
+    db: Session,
+    *,
+    user_id: int,
+    limit: int = 10,
+) -> list[ElfMessage]:
+    """列出当前用户最近收到的小精灵代转达消息。"""
+    stmt = (
+        select(ElfMessage)
+        .where(ElfMessage.to_user_id == user_id)
+        .order_by(ElfMessage.created_at.desc(), ElfMessage.id.desc())
+        .limit(limit)
+    )
+    return list(db.execute(stmt).scalars().all())

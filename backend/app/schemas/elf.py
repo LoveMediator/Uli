@@ -4,6 +4,8 @@
 字段名与类型严格对齐 API 文档 §7.1、§7.2。
 """
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.validators import reject_null_bytes
@@ -33,6 +35,27 @@ class ElfRelayResponse(BaseModel):
     message_id: str = Field(alias="messageId")
     delivered: bool
     final_message: str = Field(alias="finalMessage")
+
+
+class ElfInboxMessage(BaseModel):
+    """收到的小精灵代转达消息。"""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    message_id: str = Field(alias="messageId")
+    event_id: str | None = Field(alias="eventId", default=None)
+    from_user_id: str = Field(alias="fromUserId")
+    from_username: str = Field(alias="fromUsername")
+    final_message: str = Field(alias="finalMessage")
+    created_at: datetime = Field(alias="createdAt")
+
+
+class ElfInboxData(BaseModel):
+    """小精灵收件箱响应 data 结构。"""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    items: list[ElfInboxMessage]
 
 
 # ---------------------------------------------------------------------------

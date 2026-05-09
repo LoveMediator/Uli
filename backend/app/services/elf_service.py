@@ -11,8 +11,8 @@ from app.constants.error_codes import FORBIDDEN, INVALID_PARAMS, NOT_FOUND
 from app.constants.enums import ModerationRiskLevel
 from app.core.errors import AppError
 from app.models.user import User
-from app.repos import audit_repo, elf_repo
-from app.schemas.elf import ElfRelayResponse, ModerateResponse
+from app.repos import audit_repo, elf_repo, event_repo
+from app.schemas.elf import ElfInboxData, ElfInboxMessage, ElfRelayResponse, ModerateResponse
 from app.services import ai_service
 from app.utils.ids import generate_public_id
 from app.utils.permissions import get_event_with_permission
@@ -95,6 +95,37 @@ def _resolve_target_user(db: Session, target_public_id: str) -> User:
     if user is None:
         raise AppError("目标用户不存在", code=NOT_FOUND)
     return user
+
+
+def _get_user_by_id(db: Session, user_id: int) -> User:
+    stmt = select(User).where(User.id == user_id)
+    user = db.execute(stmt).scalar_one_or_none()
+    if user is None:
+        raise AppError("用户不存在", code=NOT_FOUND)
+    return user
+
+
+def list_inbox_messages(db: Session, user_id: int, limit: int = 10) -> ElfInboxData:
+    """列出当前用户收到的小精灵代转达消息。"""
+    safe_limit = max(1, min(limit, 50))
+    items: list[ElfInboxMessage] = []
+    for message in elf_repo.list_inbox_messages(db, user_id=user_id, limit=safe_limit):
+        sender = _get_user_by_id(db, message.from_user_id)
+        event_public_id: str | None = None
+        if message.event_id is not None:
+            event = event_repo.get_event_by_id(db, message.event_id)
+            event_public_id = event.public_id if event is not None else None
+        items.append(
+            ElfInboxMessage(
+                messageId=message.public_id,
+                eventId=event_public_id,
+                fromUserId=sender.public_id,
+                fromUsername=sender.username,
+                finalMessage=message.final_message,
+                createdAt=message.created_at,
+            )
+        )
+    return ElfInboxData(items=items)
 
 
 def relay_message(

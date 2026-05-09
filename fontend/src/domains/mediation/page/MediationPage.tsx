@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Bot, CheckCircle2, Copy, Heart, MessageCircle, RefreshCcw, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAppStore } from '@/app/model/app-store';
 import { useAuthStore } from '@/domains/auth';
 import { mediationApi } from '@/domains/mediation/api/mediation-api';
 import { useCurrentEvent } from '@/domains/mediation/model/use-current-event';
@@ -11,7 +12,7 @@ import { JudgeResultCard } from '@/domains/mediation/ui/JudgeResultCard';
 import type { AnalysisSessionMessagePayload } from '@/shared/api/types';
 import { EventStatus, type EventStatusValue } from '@/shared/api/types';
 import { formatEventStatus, getErrorMessage } from '@/shared/lib';
-import { Button, Card, Input, LoadingSpinner, pushMessage } from '@/shared/ui';
+import { Button, Card, LoadingSpinner, pushMessage } from '@/shared/ui';
 
 export function MediationPage() {
   const judgeVisibleStatuses = new Set<EventStatusValue>([
@@ -22,6 +23,7 @@ export function MediationPage() {
   const navigate = useNavigate();
   const { currentEvent, relationshipId, setCurrentEvent, patchCurrentEvent, clearCurrentEvent } =
     useCurrentEvent();
+  const activeRelationship = useAppStore((state) => state.activeRelationship);
   const publicId = useAuthStore((state) => state.publicId);
   const eventStatusLabel = formatEventStatus(currentEvent?.status);
   const hasRelationship = relationshipId.trim().length > 0;
@@ -32,9 +34,10 @@ export function MediationPage() {
   const [sessionInitialCanCommit, setSessionInitialCanCommit] = useState(false);
   const [sessionInitialFactSummary, setSessionInitialFactSummary] = useState<string | null>(null);
 
-  const [relayTargetUserId, setRelayTargetUserId] = useState('');
   const [relayMessage, setRelayMessage] = useState('');
   const [relayResult, setRelayResult] = useState('');
+  const relayTargetUserId = currentEvent?.partnerUserId ?? activeRelationship?.partnerUserId ?? '';
+  const relayPartnerName = currentEvent?.partnerUsername ?? activeRelationship?.partnerUsername ?? '对方';
 
   const startSessionMutation = useMutation({
     mutationFn: () => mediationApi.startAAnalysisSession(relationshipId),
@@ -67,7 +70,7 @@ export function MediationPage() {
     mutationFn: () =>
       mediationApi.relayMessage({
         eventId: currentEvent!.eventId,
-        targetUserId: relayTargetUserId.trim(),
+        targetUserId: relayTargetUserId,
         rawMessage: relayMessage.trim(),
       }),
     onSuccess: (data) => {
@@ -174,13 +177,8 @@ export function MediationPage() {
                   <span className="text-sm font-bold text-coffee-900">小精灵代转达</span>
                 </div>
                 <p className="text-xs leading-6 text-coffee-800/60">
-                  当前后端还没有关系成员信息查询，这里先手动填写对方的 publicId。
+                  小精灵会先柔化表达，再代你转达给{relayPartnerName}。
                 </p>
-                <Input
-                  placeholder="对方 publicId，例如 u_seed_b_1"
-                  value={relayTargetUserId}
-                  onChange={(event) => setRelayTargetUserId(event.target.value)}
-                />
                 <textarea
                   rows={3}
                   className="w-full rounded-2xl border border-milk-200 bg-milk-50 px-4 py-3 text-sm text-coffee-800 outline-none focus:border-coffee-300"
@@ -190,7 +188,7 @@ export function MediationPage() {
                 />
                 <Button
                   fullWidth
-                  disabled={!relayTargetUserId.trim() || !relayMessage.trim() || relayMutation.isPending}
+                  disabled={!relayTargetUserId || !relayMessage.trim() || relayMutation.isPending}
                   onClick={() => void relayMutation.mutateAsync()}
                 >
                   {relayMutation.isPending ? <LoadingSpinner /> : '发送代转达'}

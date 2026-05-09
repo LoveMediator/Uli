@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     analysis_session_ttl_seconds: int = 86400
     max_upload_size_mb: int = 5
+    llm_provider: str = ""
+    llm_api_key: str = ""
+    llm_base_url: str = ""
+    llm_text_model: str = ""
+    llm_vision_model: str = ""
+    llm_auth_scheme: str = ""
     kimi_api_key: str = ""
     kimi_base_url: str = "https://api.moonshot.cn/v1"
     kimi_text_model: str = "kimi-k2.5"
@@ -29,6 +35,34 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @property
+    def effective_llm_provider(self) -> str:
+        return (self.llm_provider or "kimi").strip().lower()
+
+    @property
+    def effective_llm_api_key(self) -> str:
+        return self.llm_api_key or self.kimi_api_key
+
+    @property
+    def effective_llm_base_url(self) -> str:
+        return self.llm_base_url or self.kimi_base_url
+
+    @property
+    def effective_llm_text_model(self) -> str:
+        return self.llm_text_model or self.kimi_text_model
+
+    @property
+    def effective_llm_vision_model(self) -> str:
+        return self.llm_vision_model or self.kimi_vision_model
+
+    @property
+    def effective_llm_auth_scheme(self) -> str:
+        if self.llm_auth_scheme:
+            return self.llm_auth_scheme.strip().lower()
+        if self.effective_llm_provider in {"xiaomi", "mimo"}:
+            return "api-key"
+        return "bearer"
 
 
 settings = Settings()

@@ -1,3 +1,5 @@
+import type { EventStatusValue } from './enums';
+
 export interface RelationshipInviteData {
   inviteToken: string;
   inviteUrl: string;
@@ -6,7 +8,7 @@ export interface RelationshipInviteData {
 
 export interface RelationshipCurrentEvent {
   eventId: string;
-  status: string;
+  status: EventStatusValue;
   pendingAction: string;
   title: string | null;
 }

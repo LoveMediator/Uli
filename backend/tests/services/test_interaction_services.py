@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +15,26 @@ class _ScalarResult:
 
     def scalar_one_or_none(self):
         return self._value
+
+
+class _ScalarsResult:
+    def __init__(self, values):
+        self._values = values
+
+    def all(self):
+        return self._values
+
+
+class _ExecuteResult:
+    def __init__(self, value=None, values=None):
+        self._value = value
+        self._values = values if values is not None else []
+
+    def scalar_one_or_none(self):
+        return self._value
+
+    def scalars(self):
+        return _ScalarsResult(self._values)
 
 
 def test_followup_chat_success(monkeypatch):
@@ -102,6 +123,35 @@ def test_elf_relay_forbidden_when_target_not_in_relationship(monkeypatch):
             raw_message="msg",
         )
     assert ex.value.code == 2002
+
+
+def test_elf_inbox_lists_received_messages(monkeypatch):
+    received_at = datetime(2026, 5, 9, tzinfo=UTC)
+    message = SimpleNamespace(
+        public_id="elf_1",
+        event_id=None,
+        from_user_id=20,
+        final_message="我想把刚才那件事说清楚一点。",
+        created_at=received_at,
+    )
+    sender = SimpleNamespace(id=20, public_id="u_20", username="bob")
+
+    class _DB:
+        def __init__(self):
+            self._step = 0
+
+        def execute(self, *_):
+            self._step += 1
+            if self._step == 1:
+                return _ExecuteResult(values=[message])
+            return _ExecuteResult(value=sender)
+
+    resp = elf_service.list_inbox_messages(_DB(), user_id=10, limit=5)
+    assert len(resp.items) == 1
+    assert resp.items[0].message_id == "elf_1"
+    assert resp.items[0].from_user_id == "u_20"
+    assert resp.items[0].from_username == "bob"
+    assert resp.items[0].final_message == "我想把刚才那件事说清楚一点。"
 
 
 def test_elf_moderate_success(monkeypatch):

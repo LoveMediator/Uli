@@ -22,7 +22,7 @@ def test_generate_judge_result_single_snapshot(monkeypatch):
         misunderstandings=["误解点1"],
         advice_for_a=["建议A"],
         advice_for_b=["建议B"],
-        model_name=settings.kimi_text_model,
+        model_name=settings.effective_llm_text_model,
         input_tokens=10,
         output_tokens=20,
     )
@@ -37,7 +37,7 @@ def test_generate_judge_result_single_snapshot(monkeypatch):
                 adviceForA=["建议A"],
                 adviceForB=["建议B"],
             ),
-            "model_name": settings.kimi_text_model,
+            "model_name": settings.effective_llm_text_model,
             "input_tokens": 10,
             "output_tokens": 20,
         }
@@ -56,7 +56,7 @@ def test_generate_judge_result_single_snapshot(monkeypatch):
     )
 
     assert result.public_id == "jr_1"
-    assert captured["model_name"] == settings.kimi_text_model
+    assert captured["model_name"] == settings.effective_llm_text_model
     assert "所有自然语言字段必须使用简体中文" in str(captured["prompt"])
     assert "你只能输出合法 JSON" in str(captured["system_prompt"])
 
@@ -72,7 +72,7 @@ def test_generate_judge_result_with_both_snapshots(monkeypatch):
         misunderstandings=["误解点1"],
         advice_for_a=["建议A"],
         advice_for_b=["建议B"],
-        model_name=settings.kimi_text_model,
+        model_name=settings.effective_llm_text_model,
         input_tokens=10,
         output_tokens=20,
     )
@@ -87,7 +87,7 @@ def test_generate_judge_result_with_both_snapshots(monkeypatch):
                 adviceForA=["建议A"],
                 adviceForB=["建议B"],
             ),
-            "model_name": settings.kimi_text_model,
+            "model_name": settings.effective_llm_text_model,
             "input_tokens": 10,
             "output_tokens": 20,
         }

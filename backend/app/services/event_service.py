@@ -174,7 +174,7 @@ def _execute_judge_inner(
         db,
         event_id=event.id,
         scene="judge",
-        model_name=judge_result.model_name or settings.kimi_text_model,
+        model_name=judge_result.model_name or settings.effective_llm_text_model,
         success=True,
         input_tokens=judge_result.input_tokens or 0,
         output_tokens=judge_result.output_tokens or 0,
@@ -192,7 +192,7 @@ def _execute_judge_inner(
             db,
             event_id=event.id,
             scene="review",
-            model_name=settings.kimi_text_model,
+            model_name=settings.effective_llm_text_model,
             success=False,
             error_code=str(exc.code),
         )
@@ -203,7 +203,7 @@ def _execute_judge_inner(
             db,
             event_id=event.id,
             scene="review",
-            model_name=settings.kimi_text_model,
+            model_name=settings.effective_llm_text_model,
             success=False,
             error_code="unexpected",
         )

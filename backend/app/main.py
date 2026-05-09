@@ -8,7 +8,7 @@ from sqlalchemy import text
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import router
 from app.core.config import settings
-from app.core.kimi_client import close_kimi_client
+from app.core.llm_client import close_llm_client
 from app.core.logging import setup_logging
 from app.db.session import SessionLocal
 
@@ -16,7 +16,7 @@ from app.db.session import SessionLocal
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     yield
-    close_kimi_client()
+    close_llm_client()
 
 
 def create_app() -> FastAPI:

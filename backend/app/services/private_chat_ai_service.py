@@ -1,6 +1,6 @@
 """Private analysis chat LLM service.
 
-Uses the shared kimi_chat_completion() for the HTTP layer,
+Uses the shared chat_completion() for the HTTP layer,
 adds private-chat-specific model resolution, structured reply parsing,
 and vision/image detection.
 """
@@ -11,7 +11,7 @@ import json
 from typing import Any
 
 from app.core.config import settings
-from app.services.ai_service import kimi_chat_completion
+from app.services.ai_service import chat_completion
 
 
 def _count_message_metrics(messages: list[dict[str, Any]]) -> tuple[int, int]:
@@ -50,8 +50,8 @@ def _resolve_model(model_name: str | None, messages: list[dict[str, Any]]) -> st
     if model_name and not model_name.startswith("mock-"):
         return model_name
     if _contains_image(messages):
-        return settings.kimi_vision_model
-    return settings.kimi_text_model
+        return settings.effective_llm_vision_model
+    return settings.effective_llm_text_model
 
 
 def _extract_json_text(content: str) -> str | None:
@@ -120,7 +120,7 @@ def call_private_chat_llm(
     """LLM entrypoint for private analysis chat."""
     resolved_model = _resolve_model(model_name, messages)
 
-    result = kimi_chat_completion(
+    result = chat_completion(
         messages=messages,
         model=resolved_model,
     )
@@ -129,7 +129,7 @@ def call_private_chat_llm(
     text_chars, image_count = _count_message_metrics(messages)
     if not raw_content:
         raw_content = (
-            f"[EMPTY] Kimi returned no text content for {len(messages)} messages, "
+            f"[EMPTY] LLM returned no text content for {len(messages)} messages, "
             f"{text_chars} text chars, {image_count} images."
         )
 

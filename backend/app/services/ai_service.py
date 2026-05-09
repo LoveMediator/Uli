@@ -7,7 +7,7 @@ from typing import Any, TypeVar
 
 import httpx
 
-from app.core.kimi_client import get_kimi_client
+from app.core.llm_client import get_llm_client
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
@@ -25,7 +25,7 @@ DEFAULT_SYSTEM_PROMPT = (
 def _resolve_model(model_name: str | None) -> str:
     if model_name and not model_name.startswith("mock-"):
         return model_name
-    return settings.kimi_text_model
+    return settings.effective_llm_text_model
 
 
 def _is_kimi_k2_family(model_name: str) -> bool:
@@ -33,45 +33,58 @@ def _is_kimi_k2_family(model_name: str) -> bool:
     return normalized.startswith("kimi-k2")
 
 
-def kimi_chat_completion(
+def _auth_headers() -> dict[str, str]:
+    api_key = settings.effective_llm_api_key
+    if not api_key:
+        provider_name = settings.effective_llm_provider.upper()
+        raise AppError(f"{provider_name} API Key 未配置", code=5000)
+
+    headers = {"Content-Type": "application/json"}
+    auth_scheme = settings.effective_llm_auth_scheme
+    if auth_scheme == "api-key":
+        headers["api-key"] = api_key
+    elif auth_scheme == "both":
+        headers["api-key"] = api_key
+        headers["Authorization"] = f"Bearer {api_key}"
+    else:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+def chat_completion(
     *,
     messages: list[dict[str, Any]],
     model: str,
     temperature: float | None = None,
 ) -> dict[str, Any]:
-    """底层 Kimi API 调用：发送请求、处理错误、解析响应。
+    """底层 OpenAI-compatible API 调用：发送请求、处理错误、解析响应。
 
     返回 {"model_name", "input_tokens", "output_tokens", "raw_content"}。
     调用方自行决定如何处理 raw_content（可能为空字符串）。
     """
-    if not settings.kimi_api_key:
-        raise AppError("Kimi API Key 未配置", code=5000)
-
     request_payload: dict[str, Any] = {
         "model": model,
         "messages": messages,
     }
-    if _is_kimi_k2_family(model):
+    if settings.effective_llm_provider == "kimi" and _is_kimi_k2_family(model):
         request_payload["thinking"] = {"type": "disabled"}
     elif temperature is not None:
         request_payload["temperature"] = temperature
 
+    provider_label = settings.effective_llm_provider.upper()
     try:
-        response = get_kimi_client().post(
+        response = get_llm_client().post(
             "/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.kimi_api_key}",
-                "Content-Type": "application/json",
-            },
+            headers=_auth_headers(),
             json=request_payload,
         )
     except httpx.TimeoutException as exc:
-        raise AppError("Kimi 请求超时，请稍后重试", code=5000) from exc
+        raise AppError(f"{provider_label} 请求超时，请稍后重试", code=5000) from exc
     except httpx.HTTPError as exc:
-        raise AppError(f"Kimi 服务调用失败: {exc}", code=5000) from exc
+        raise AppError(f"{provider_label} 服务调用失败: {exc}", code=5000) from exc
 
     if response.status_code == 401:
-        raise AppError("Kimi API 认证失败，请检查 API Key", code=5000)
+        raise AppError(f"{provider_label} API 认证失败，请检查 API Key", code=5000)
     if response.status_code >= 400:
         try:
             error_payload = response.json()
@@ -83,14 +96,14 @@ def kimi_chat_completion(
             or response.text
         )
         raise AppError(
-            f"Kimi 请求失败: {error_message}",
+            f"{provider_label} 请求失败: {error_message}",
             code=1001 if response.status_code < 500 else 5000,
         )
 
     payload = response.json()
     choices = payload.get("choices") or []
     if not choices:
-        raise AppError("Kimi 未返回可用结果", code=5000)
+        raise AppError(f"{provider_label} 未返回可用结果", code=5000)
 
     message = choices[0].get("message", {})
     raw_content = extract_text_content(message.get("content")).strip()
@@ -101,6 +114,16 @@ def kimi_chat_completion(
         "output_tokens": int(usage.get("completion_tokens", 0) or 0),
         "raw_content": raw_content,
     }
+
+
+def kimi_chat_completion(
+    *,
+    messages: list[dict[str, Any]],
+    model: str,
+    temperature: float | None = None,
+) -> dict[str, Any]:
+    """Compatibility alias for older call sites."""
+    return chat_completion(messages=messages, model=model, temperature=temperature)
 
 
 def extract_text_content(content: Any) -> str:
@@ -123,14 +146,14 @@ def _request_chat_completion(
     temperature: float = 0.3,
 ) -> dict[str, Any]:
     resolved_model = _resolve_model(model_name)
-    result = kimi_chat_completion(
+    result = chat_completion(
         messages=messages,
         model=resolved_model,
         temperature=temperature,
     )
     content = result["raw_content"]
     if not content:
-        raise AppError("Kimi 未返回可用文本内容", code=5000)
+        raise AppError(f"{settings.effective_llm_provider.upper()} 未返回可用文本内容", code=5000)
     return {
         "model_name": result["model_name"],
         "input_tokens": result["input_tokens"],

@@ -70,7 +70,7 @@ def generate_judge_result(
     ai_result = ai_service.call_llm_json(
         prompt="\n".join(prompt_parts),
         response_model=JudgeAiPayload,
-        model_name=settings.kimi_text_model,
+        model_name=settings.effective_llm_text_model,
         system_prompt=(
             "你是后端裁判 JSON 生成器。"
             "你只能输出合法 JSON。"
