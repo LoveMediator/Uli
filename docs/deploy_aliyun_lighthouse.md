@@ -86,10 +86,12 @@ DATABASE_URL=postgresql+psycopg://uli:你的数据库密码@127.0.0.1:5432/uli_p
 REDIS_URL=redis://127.0.0.1:6379/0
 SECRET_KEY=替换成长度足够的随机字符串
 CORS_ORIGINS=https://你的域名
-KIMI_API_KEY=你的正式密钥
-KIMI_BASE_URL=https://api.moonshot.cn/v1
-KIMI_TEXT_MODEL=kimi-k2.5
-KIMI_VISION_MODEL=moonshot-v1-vision-preview
+LLM_PROVIDER=xiaomi
+LLM_API_KEY=你的小米中转站密钥
+LLM_BASE_URL=http://47.113.229.93:3009/v1
+LLM_TEXT_MODEL=mimo-v2.5-pro
+LLM_VISION_MODEL=mimo-v2-omni
+LLM_AUTH_SCHEME=bearer
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=30
 ```
@@ -99,6 +101,7 @@ REFRESH_TOKEN_EXPIRE_DAYS=30
 - `DEBUG` 必须是 `false`
 - `SECRET_KEY` 必须固定，不能每次重启变化
 - 如果暂时用公网 IP 访问，把 `CORS_ORIGINS` 改成 `http://你的公网IP`
+- 当前模型调用走小米中转站，`LLM_BASE_URL` 需要保留 `/v1` 后缀，`LLM_AUTH_SCHEME` 使用 `bearer`
 
 ## 6. 安装后端并迁移数据库
 
